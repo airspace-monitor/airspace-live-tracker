@@ -38,11 +38,16 @@ _LATEST_ANY_SQL = "SELECT max(snapshot_time) FROM raw.state_vectors"
 _SNAPSHOT_EXISTS_SQL = "SELECT 1 FROM raw.state_vectors WHERE snapshot_time = %s LIMIT 1"
 
 # One round trip. app_reader may not read ops.ingest_batches directly, only the views.
+# `airborne` repeats max() as a scalar subquery on purpose: joining `latest` instead
+# (FROM raw.state_vectors v, latest) defeats TimescaleDB's runtime chunk exclusion, so the
+# query scans every compressed chunk (~60 s at 85M rows). The scalar form touches one chunk.
 _STATS_SQL = """
 WITH latest AS (SELECT max(snapshot_time) AS t FROM raw.state_vectors),
 airborne AS (
-  SELECT count(*)::int AS n FROM raw.state_vectors v, latest
-  WHERE v.snapshot_time = latest.t AND v.lat IS NOT NULL AND v.lon IS NOT NULL
+  SELECT count(*)::int AS n
+  FROM raw.state_vectors
+  WHERE snapshot_time = (SELECT max(snapshot_time) FROM raw.state_vectors)
+    AND lat IS NOT NULL AND lon IS NOT NULL
 ),
 online AS (
   SELECT count(DISTINCT collector_id)::int AS n FROM ops.v_ingest_batches
