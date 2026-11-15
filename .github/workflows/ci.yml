@@ -44,6 +44,8 @@ jobs:
         include:
           - service: ingest
             file: services/ingest/Dockerfile
+          - service: api
+            file: services/api/Dockerfile
           - service: collector
             file: collector/Dockerfile
           - service: orchestrator

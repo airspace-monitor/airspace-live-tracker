@@ -5,7 +5,7 @@ The working task list for the whole application, by milestone ([10](10-roadmap.m
 Status: ✅ done · 🟡 in progress · ⬜ to do · ⛔ blocked (the note says on what).
 Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#work-split)). Track A is owned by Dániel, Track B by Alek.
 
-*Last updated: 2026-11-08.*
+*Last updated: 2026-11-15.*
 
 ## What exists now
 
@@ -16,10 +16,10 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 | `libs/airspace_common` | `settings.py` (collector settings), `timefmt.py` (`iso_z`), `log.py` (structlog JSON) |
 | Collector v0 | State-vector loop on the 90 s grid, OAuth2 token handling, atomic spool writes, failure handling (retry, 429 back-off, failed envelopes), daily flight-list task with restart-safe progress, single-instance lock, `status` command. 38 tests |
 | Collection | **pi-daniel collecting 24/7 since 2026-11-07** on the Raspberry Pi (Debian 13 arm64, 4 GB RAM, 64 GB microSD) in Docker (`collector/compose.yml`). pc-daniel collected 2026-10-29 to 11-07, off overnight; its task `airspace-collector` is stopped and must stay disabled (D4) |
-| Server | Oracle A1 VM `airspace-vm` (Frankfurt, 2 OCPU, 12 GB, 200 GB) with Docker and Tailscale, created 2026-10-30. No inbound ports open to the internet. Runs the database and ingest-api from a git checkout of `main`, deployed with `infra/deploy.sh` |
+| Server | Oracle A1 VM `airspace-vm` (Frankfurt, 2 OCPU, 12 GB, 200 GB) with Docker and Tailscale, created 2026-10-30. No inbound ports open to the internet. Runs the database, ingest-api, public-api and Dagster from a git checkout of `main`, deployed with `infra/deploy.sh` |
 | Pipeline | pc-daniel uploads to ingest-api on the VM over Tailscale; batches land in TimescaleDB. On 2026-11-03: 2,780 snapshots, 27.5M state vectors, 314k flight-list rows, nothing rejected; database 6.5 GB, uncompressed |
 | Not started | stream worker, Dagster jobs, Grafana, web app, ML, LLM |
-| public-api | `services/api` serves all of M2.1 as `app_reader`: `/live/snapshot`, `/stats`, `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/live/stream` (SSE), `/health` |
+| public-api | `services/api` serves all of M2.1 as `app_reader`: `/live/snapshot`, `/stats`, `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/live/stream` (SSE), `/health`. Runs in the compose stack on the VM (`127.0.0.1:8001`) |
 
 ## Open questions found while building
 
@@ -92,7 +92,7 @@ Q4–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M1.11 | Compression-policy migration, merged after the drain | A | ✅ | Applied on the VM 2026-11-05 (job 1005, every 12 h). First run compressed 5 days from 6.0 GB to 2.1 GB (2.9×, 69 B/row), lower than the ~10× estimated (Q16) |
 | M1.12 | Dagster webserver, daemon and code location (tailnet only) | A | ✅ | 2026-11-08: one image (`services/orchestrator`) runs all three; storage in the `dagster` database; webserver on `127.0.0.1:3000`, shared to the tailnet with `tailscale serve`. CI's migration test also checks that the webserver loads the `airspace` code location. No jobs yet; `backup` (M1.16) is the first |
 | M1.13 | Grafana provisioning; ops dashboards (rows/min, slot coverage, gaps), externally shared | A | ⬜ | |
-| M1.14 | `ci.yml`: ruff, mypy, pytest, ESLint, tsc, Vitest, migration test, multi-arch build | A | ✅ | Green since 2026-11-08 in the `airspace-monitor` organization (the repo moved there because Actions would not start on the previous owner's account). Python checks, `infra/test-db.sh`, amd64 + arm64 builds of ingest and collector. JS checks join with `web/` |
+| M1.14 | `ci.yml`: ruff, mypy, pytest, ESLint, tsc, Vitest, migration test, multi-arch build | A | ✅ | Green since 2026-11-08 in the `airspace-monitor` organization (the repo moved there because Actions would not start on the previous owner's account). Python checks, `infra/test-db.sh`, amd64 + arm64 builds of ingest, api, collector and orchestrator. JS checks join with `web/` |
 | M1.15 | `deploy.yml` and `infra/deploy.sh` (Tailscale, pull → migrate → up), GHCR | A | ✅ | Live since 2026-11-08: every merge to `main` runs CI, then deploys to the VM over Tailscale (first automatic deploy: PR #12). Images build on the VM; GHCR deferred |
 | M1.16 | Daily `backup` job to R2; restore drill | A | ⬜ | |
 | M1.17 | Local dev command with the fixture database | A | ⬜ | |
@@ -105,7 +105,7 @@ Q4–Q15 carry over the findings still open from the 2026-10-30 documentation re
 
 | # | Task | Track | Status | Notes |
 |---|---|---|---|---|
-| M2.1 | public-api: `/live/snapshot`, `/live/stream` (SSE), `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/stats`, `/health` | B | 🟡 | `services/api` serves all seven endpoints (129 tests, checked against the VM database). Left: a Dockerfile and a compose entry so it runs on the VM (M1.15) |
+| M2.1 | public-api: `/live/snapshot`, `/live/stream` (SSE), `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/stats`, `/health` | B | ✅ | `services/api` serves all seven endpoints as `app_reader` (130 tests). `Dockerfile` and compose service `public-api` (`127.0.0.1:8001`); built and smoke-tested on the VM 2026-11-15. `/stats` keeps TimescaleDB chunk exclusion (61 s → 23 ms at 85M rows). Left for M2.8: CORS and `tailscale serve` |
 | M2.2 | stream-worker: squawk and go-around events, `ops.stream_state` | A | ⬜ | Go-arounds use `ref.airports` from M1.18 |
 | M2.3 | `metar_fetch` job | A | ⬜ | |
 | M2.4 | Web app shell: layout, header stats, attribution footer, bottom sheet under 900 px | B | ⬜ | |
