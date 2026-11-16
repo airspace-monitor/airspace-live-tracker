@@ -56,6 +56,7 @@ Q4–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | D6 | The collector keeps 30 days of Parquet archives locally (`ARCHIVE_RETENTION_DAYS=30`), down from 90. The VM database is the main store and R2 the off-site copy (capped by D7) | About 6 GB on the Pi's 64 GB SD card instead of 15–20 GB (decided 2026-11-07) |
 | D7 | R2 stays inside its 10 GB free tier: backups plus archives are capped at 8 GB. The daily `backup` job deletes the oldest `airspace-archive` files when the total passes the cap; backups (14 days) are never deleted for it | Enabling R2 needs a card, and nothing may be billed. At ~0.2 GB of Parquet a day the archive holds the last ~5 weeks, more than the Pi's 30 days; older raw data lives only in the database (90 days) (decided 2026-11-08) |
 | D8 | `pg_dump` runs from the dagster-code container as a read-only `backup` role (`pg_read_all_data`), not inside the database container | Running it in the database container would need the Docker socket in Dagster, which is root on the VM (decided 2026-11-08) |
+| D9 | The collector exits after 10 consecutive slots with no response from OpenSky, so Docker restarts it | A Pi reboot on 2026-11-13 left the container with an empty `resolv.conf`; it collected nothing for 2.7 days without crashing, and a restart fixed it (decided 2026-11-16) |
 
 ## M0 · Foundations (weeks 0–1)
 
@@ -127,7 +128,7 @@ Q4–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M3.5 | `routes_refresh` (OpenSky flight lists plus Zenodo fallback) | A | ⬜ | |
 | M3.6 | `metar_backfill` from Iowa Environmental Mesonet | A | ⬜ | |
 | M3.7 | `dq_checks` and the Grafana traffic-light table | A | ⬜ | |
-| M3.8 | `collector_gap_check` | A | ⬜ | |
+| M3.8 | `collector_gap_check` | A | ✅ | Pulled forward from M3 on 2026-11-16, after the Pi's 2.7-day outage went unnoticed. Dagster, every 5 min; writes `ops.job_runs`. Events are only in the database until a dashboard or the frontend shows them. `pc-daniel` was disabled (`disabled_at`) so it is not checked |
 | M3.9 | `flights_rebuild`, `events_rebuild`, `collector.replay` | A | ⬜ | |
 
 ## M4 · ML (weeks 4–6)
