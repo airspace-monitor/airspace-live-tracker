@@ -20,7 +20,15 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 import psycopg
-from dagster import In, Nothing, OpExecutionContext, ScheduleDefinition, job, op
+from dagster import (
+    DefaultScheduleStatus,
+    In,
+    Nothing,
+    OpExecutionContext,
+    ScheduleDefinition,
+    job,
+    op,
+)
 
 from airspace_common.settings import BackupSettings
 
@@ -172,5 +180,8 @@ def backup() -> None:
 
 
 backup_schedule = ScheduleDefinition(
-    job=backup, cron_schedule="0 4 * * *", execution_timezone="UTC"
+    job=backup,
+    cron_schedule="0 4 * * *",
+    execution_timezone="UTC",
+    default_status=DefaultScheduleStatus.RUNNING,
 )
