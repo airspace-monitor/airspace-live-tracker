@@ -100,6 +100,7 @@ VM
   2. It SSHes to the VM with a deploy key that can only run `infra/deploy.sh` (a forced command in `authorized_keys`), checking the VM's pinned host key.
   3. `deploy.sh` refuses to run over local edits, fast-forwards to `origin/main`, pulls the pinned third-party images, builds ours, runs `docker compose run --rm migrate`, then `docker compose up -d --wait`.
   - A team member can run `infra/deploy.sh` on the VM by hand; it does the same.
+  - `deploy.sh` runs `up --remove-orphans`, so a container started by hand in the `airspace` compose project but not defined in `main`'s `infra/compose.yml` is removed on the next deploy. Try unmerged services under another project name (`docker compose -p airspace-<name>`).
   - Migrations run **before** the new code starts, so every migration must work with the code that is still running (add columns and tables first, remove them in a later release).
 - **Frontend:** Cloudflare Pages builds `web/` on every push; PRs get preview URLs.
 

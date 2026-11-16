@@ -5,7 +5,7 @@ The working task list for the whole application, by milestone ([10](10-roadmap.m
 Status: ✅ done · 🟡 in progress · ⬜ to do · ⛔ blocked (the note says on what).
 Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#work-split)). Track A is owned by Dániel, Track B by Alek.
 
-*Last updated: 2026-11-08.*
+*Last updated: 2026-11-16.*
 
 ## What exists now
 
@@ -96,7 +96,7 @@ Q4–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M1.13 | Grafana provisioning; ops dashboards (rows/min, slot coverage, gaps), externally shared | A | ⬜ | |
 | M1.14 | `ci.yml`: ruff, mypy, pytest, ESLint, tsc, Vitest, migration test, multi-arch build | A | ✅ | Green since 2026-11-08 in the `airspace-monitor` organization (the repo moved there because Actions would not start on the previous owner's account). Python checks, `infra/test-db.sh`, amd64 + arm64 builds of ingest and collector. JS checks join with `web/` |
 | M1.15 | `deploy.yml` and `infra/deploy.sh` (Tailscale, pull → migrate → up), GHCR | A | ✅ | Live since 2026-11-08: every merge to `main` runs CI, then deploys to the VM over Tailscale (first automatic deploy: PR #12). Images build on the VM; GHCR deferred |
-| M1.16 | Daily `backup` job to R2; restore drill | A | ⬜ | |
+| M1.16 | Daily `backup` job to R2; restore drill | A | ✅ | Live 2026-11-16 (Dagster, daily 04:00 UTC). First backup 0.78 MB, since raw chunk data is left out. Restore drill from R2 into a scratch database matched the live `ops` tables. CI repeats the drill on every PR. Raw data is not in the backups: until M1.20 its only off-VM copies are the collectors' `spool/sent` |
 | M1.17 | Local dev command with the fixture database | A | ⬜ | |
 | M1.18 | OurAirports seed loader `db/seeds/ourairports.py` (`ref.airports`, `ref.runways`) | A | ⬜ | D2 |
 | M1.19 | Spool compaction to Parquet at 00:30 UTC (uploaded files only) | A | ⬜ | D1; after M1.8 |
