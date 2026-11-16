@@ -69,3 +69,12 @@ class BackupSettings(BaseSettings):
     backup_keep_days: int = 14
     # D7: backups plus archives stay under this, below R2's 10 GB free tier.
     r2_cap_bytes: int = 8_000_000_000
+
+
+class JobsSettings(BaseSettings):
+    """Scheduled Dagster jobs (docs/04-pipelines.md#p4--orchestrated-jobs), connecting as `jobs`."""
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    jobs_password: SecretStr
+    jobs_db_host: str = "db"

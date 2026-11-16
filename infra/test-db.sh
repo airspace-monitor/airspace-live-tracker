@@ -51,3 +51,31 @@ BEGIN
 END $$;
 SQL
 echo "backup and restore drill passed"
+
+# collector_gap_check: test-01 succeeds at 12:00 and 12:01:30, misses 12:03:00-12:07:30 (4 slots)
+# and succeeds again at 12:09:00. Two runs of the same window give one event and two job_runs rows.
+dc exec -T db psql -U postgres -d airspace -q -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO ops.ingest_batches (batch_id, collector_id, query_kind, requested_at, snapshot_time, http_status) VALUES
+  ('00000000-0000-7000-8000-0000000000a1', 'test-01', 'states_global', '2026-10-30 12:01:31Z', '2026-10-30 12:01:30Z', 200),
+  ('00000000-0000-7000-8000-0000000000a2', 'test-01', 'states_global', '2026-10-30 12:03:01Z', NULL, 0),
+  ('00000000-0000-7000-8000-0000000000a3', 'test-01', 'states_global', '2026-10-30 12:09:02Z', '2026-10-30 12:09:00Z', 200);
+SQL
+gap_config='{"ops": {"collector_gap_check_op": {"config": {"window_start": "2026-10-30T12:00:00+00:00", "window_end": "2026-10-30T12:10:30+00:00"}}}}'
+echo "$gap_config" | dc exec -T dagster-code sh -c 'cat > /tmp/gap_window.yaml'  # JSON is YAML
+for _ in 1 2; do
+  dc exec -T dagster-code dagster job execute -m orchestrator.definitions -j collector_gap_check \
+    -c /tmp/gap_window.yaml >/dev/null
+done
+dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
+DO $$
+BEGIN
+  IF (SELECT array_agg(dedupe_key) FROM core.events WHERE dedupe_key LIKE 'collector_gap:test-01:%')
+     IS DISTINCT FROM ARRAY['collector_gap:test-01:2026-10-30T12:03:00Z'] THEN
+    RAISE EXCEPTION 'expected exactly one gap event for test-01 at 12:03:00';
+  END IF;
+  IF (SELECT count(*) FROM ops.job_runs WHERE job = 'collector_gap_check' AND status = 'ok') <> 2 THEN
+    RAISE EXCEPTION 'expected two ok collector_gap_check job_runs rows';
+  END IF;
+END $$;
+SQL
+echo "collector_gap_check test passed"

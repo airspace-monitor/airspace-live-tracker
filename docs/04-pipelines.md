@@ -46,7 +46,7 @@ These live in `libs/airspace_common` and are used by every pipeline and by model
 
 **Where it runs**
 - **Windows PC (2026-10-29 to 11-07, now stopped):** a Python 3.12 process (`uv run -m collector`) registered in Windows Task Scheduler: trigger *At startup*, *Run whether user is logged on or not*, restart every 1 min on failure (999 attempts), no time limit. Windows power plan: never sleep while plugged in. Docker Desktop is not used on Windows because it only starts after a user signs in.
-- **Raspberry Pi (since 2026-11-07, [D5](11-tasks.md#decided-while-building)):** runs 24/7 on a 64-bit OS with the arm64 Docker image (`collector/Dockerfile`), Docker Engine and `restart: unless-stopped`: `docker compose -f collector/compose.yml up -d --build` from the repo root, with `.env` there and `spool/` bind-mounted. Host networking lets the tailnet name of the VM resolve as on the host.
+- **Raspberry Pi (since 2026-11-07, [D5](11-tasks.md#decided-while-building)):** runs 24/7 on a 64-bit OS with the arm64 Docker image (`collector/Dockerfile`), Docker Engine and `restart: unless-stopped`: `docker compose -f collector/compose.yml up -d --build` from the repo root, with `.env` there and `spool/` bind-mounted. Its `INGEST_URL` uses the VM's Tailscale IP (`100.80.31.53`), not its name, because Tailscale DNS is off on the Pi (since 2026-11-16).
 
 **State-vector loop**
 1. Next slot: `next = ceil(now / CADENCE_SECONDS) × CADENCE_SECONDS`. Sleep until then. The clock is NTP-synced.
@@ -72,7 +72,8 @@ These live in `libs/airspace_common` and are used by every pipeline and by model
 | Ingest unreachable or 5xx | Files stay in `pending/`; exponential backoff from 5 s to 5 min; drain oldest-first on recovery |
 | Ingest 401 | Stop uploading, keep spooling, log an ERROR every 5 min, retry one upload every 5 min |
 | Ingest 422 | Move the file to `spool/rejected/` and log an ERROR. Never retried automatically |
-| PC off | Gap, visible in `ops.ingest_batches`, Grafana and a `collector_gap` event. |
+| OpenSky unreachable for 10 slots in a row (15 min of `http_status = 0`) | The collector exits with an error, and Docker (`restart: unless-stopped`) starts it again. A restart refreshes a stale DNS config: after a reboot on 2026-11-13 the Pi's container kept an empty `resolv.conf` and lost 2.7 days of slots without crashing. With no network at all it restarts every 15 min |
+| Collector off | Gap, visible in `ops.ingest_batches`, Grafana and a `collector_gap` event. |
 | Clock skew | `snapshot_time` comes from OpenSky. `requested_at` is only used for slot and lag metrics |
 
 **Spool layout:** `spool/pending/`, `spool/sent/`, `spool/rejected/`, `spool/archive/`, plus `spool/state/` (flight-list progress per day, so a restart neither repeats nor skips windows; kept 7 days), `spool/logs/collector.log` (JSON lines, rotated at 10 MB × 5) and `spool/collector.lock` (one collector per spool; a second process refuses to start, because it would double credit use).
@@ -171,7 +172,13 @@ Find successful `states_global` batches received in the last 65 min whose `snaps
 
 ### `collector_gap_check`
 
-A gap is a run of ≥ 4 consecutive slots (`requested_at` on the 90 s grid) without a successful `states_global` batch. Insert one `collector_gap` event per gap at its first missed slot.
+A gap is a run of ≥ 4 consecutive slots (`requested_at` on the collector's 90 s grid) without a successful `states_global` batch. Insert one `collector_gap` event per gap at its first missed slot.
+
+- Checks every collector with `disabled_at IS NULL`.
+- Scheduled window: the 2 h ending 5 min before the tick, since a slot's upload can take a minute.
+- A gap that began before the window keeps its real start (the last success before the window is looked up), so every run produces the same dedupe key.
+- Misses before a collector's first success are not a gap; it has not started yet.
+- The event says the VM has no data, so it also fires when the collector works but cannot upload.
 
 ### `backup`
 

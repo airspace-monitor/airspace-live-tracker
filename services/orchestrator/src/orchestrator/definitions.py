@@ -7,5 +7,9 @@ milestone builds them.
 from dagster import Definitions
 
 from orchestrator.backup import backup, backup_schedule
+from orchestrator.gaps import collector_gap_check, collector_gap_check_schedule
 
-defs = Definitions(jobs=[backup], schedules=[backup_schedule])
+defs = Definitions(
+    jobs=[backup, collector_gap_check],
+    schedules=[backup_schedule, collector_gap_check_schedule],
+)

@@ -14,6 +14,15 @@ from collector.spool import Spool, make_envelope
 
 RETRY_DELAY_S = 10
 PARAMS = {"extended": 1}
+# 10 slots (15 min at 90 s) in a row without reaching OpenSky stop the collector, so Docker
+# restarts it. A restart refreshes a stale DNS config: after a Pi reboot on 2026-11-13 the
+# container kept an empty resolv.conf and lost 2.7 days of slots without crashing.
+MAX_UNREACHABLE_SLOTS = 10
+
+
+class OpenSkyUnreachable(RuntimeError):
+    """Raised after too many consecutive slots ended without any HTTP response."""
+
 
 log = structlog.get_logger()
 
@@ -54,10 +63,16 @@ async def collect_slot(
     return result
 
 
-async def run_states(settings: CollectorSettings, opensky: Fetcher, spool: Spool) -> None:
+async def run_states(
+    settings: CollectorSettings,
+    opensky: Fetcher,
+    spool: Spool,
+    max_unreachable_slots: int = MAX_UNREACHABLE_SLOTS,
+) -> None:
     cadence, offset = settings.cadence_seconds, settings.offset_seconds
     last_slot = 0.0
     blocked_until = 0.0
+    unreachable = 0
     while True:
         slot = max(next_slot(time.time(), cadence, offset), last_slot + cadence)
         await asyncio.sleep(max(0.0, slot - time.time()))
@@ -70,5 +85,9 @@ async def run_states(settings: CollectorSettings, opensky: Fetcher, spool: Spool
         except Exception:
             log.exception("states_slot_crashed")
             continue
+        unreachable = unreachable + 1 if result.http_status == 0 else 0
+        if unreachable >= max_unreachable_slots:
+            log.error("opensky_unreachable_exiting", consecutive_slots=unreachable)
+            raise OpenSkyUnreachable(f"{unreachable} consecutive slots without a response")
         if result.http_status == 429:
             blocked_until = time.time() + (result.retry_after_s or cadence)
