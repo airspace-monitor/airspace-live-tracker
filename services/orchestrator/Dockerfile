@@ -14,7 +14,17 @@ RUN uv sync --frozen --no-dev --no-editable --package airspace-orchestrator
 
 FROM python:3.12-slim-bookworm
 # The backup job needs pg_dump matching the server (16, from the PGDG repository) and rclone.
-RUN apt-get update  && apt-get install -y --no-install-recommends ca-certificates curl rclone  && install -d /usr/share/postgresql-common/pgdg  && curl -fsSL --retry 5 --retry-all-errors -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc       https://www.postgresql.org/media/keys/ACCC4CF8.asc  && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main"       > /etc/apt/sources.list.d/pgdg.list  && apt-get update  && apt-get install -y --no-install-recommends postgresql-client-16  && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl rclone \
+ && install -d /usr/share/postgresql-common/pgdg \
+ && curl -fsSL --retry 5 --retry-all-errors \
+      -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+      https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+ && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends postgresql-client-16 \
+ && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --uid 10002 dagster
 COPY --from=build /app/.venv /app/.venv
 COPY services/orchestrator/dagster_home /opt/dagster/home
