@@ -66,12 +66,15 @@ SELECT job_id AS compression_job FROM timescaledb_information.jobs
 WHERE proc_name = 'policy_compression' AND hypertable_schema = 'raw' AND hypertable_name = 'state_vectors'
   AND config->>'compress_after' = '2 days' \gset
 SELECT alter_job(:compression_job, scheduled => false);
+-- Unscheduling does not stop a run already in flight, so stop the background workers too.
+SELECT _timescaledb_functions.stop_background_workers();
 SELECT decompress_chunk(c, if_compressed => true) FROM show_chunks('raw.state_vectors') c;
 SET ROLE ingest_writer;
 INSERT INTO raw.state_vectors (snapshot_time, icao24, batch_id)
 VALUES (now(), 'dddddd', '00000000-0000-7000-8000-000000000001');
 RESET ROLE;
 CALL run_job(:compression_job);
+SELECT _timescaledb_functions.start_background_workers();
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM timescaledb_information.chunks WHERE hypertable_name = 'state_vectors'
