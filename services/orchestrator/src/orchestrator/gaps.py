@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 import psycopg
 from dagster import (
     Config,
+    DefaultScheduleStatus,
     OpExecutionContext,
     RunRequest,
     ScheduleEvaluationContext,
@@ -141,7 +142,12 @@ def window_for_tick(tick: datetime) -> tuple[datetime, datetime]:
     return end - WINDOW, end
 
 
-@schedule(job=collector_gap_check, cron_schedule="*/5 * * * *", execution_timezone="UTC")
+@schedule(
+    job=collector_gap_check,
+    cron_schedule="*/5 * * * *",
+    execution_timezone="UTC",
+    default_status=DefaultScheduleStatus.RUNNING,
+)
 def collector_gap_check_schedule(context: ScheduleEvaluationContext) -> RunRequest:
     tick = context.scheduled_execution_time or datetime.now(UTC)
     start, end = window_for_tick(tick.astimezone(UTC))
