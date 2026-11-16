@@ -75,7 +75,7 @@ services:
   # config in services/orchestrator/dagster_home. Runs execute inside dagster-code.
   dagster-code:
     image: airspace-orchestrator:local
-    build: &dagster-build
+    build:
       context: ..
       dockerfile: services/orchestrator/Dockerfile
     restart: unless-stopped
@@ -106,7 +106,7 @@ services:
 
   dagster-webserver:
     image: airspace-orchestrator:local
-    build: *dagster-build
+    pull_policy: never  # built once by dagster-code
     restart: unless-stopped
     depends_on:
       dagster-code:
@@ -127,7 +127,7 @@ services:
 
   dagster-daemon:
     image: airspace-orchestrator:local
-    build: *dagster-build
+    pull_policy: never  # built once by dagster-code
     restart: unless-stopped
     depends_on:
       dagster-code:
