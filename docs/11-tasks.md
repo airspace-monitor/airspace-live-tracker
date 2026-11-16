@@ -76,7 +76,7 @@ Q4–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M0.17 | Product owner decisions (core vs stretch, hosting, dropped items, data limits) | both | ⬜ | |
 | M0.18 | Verify the flight-list quota cost and the Zenodo DOI ([02](02-data-sources.md)) | A | ✅ | Quota measured 2026-10-29. DOI checked 2026-10-31: it is not CC BY (Q2) |
 | M0.19 | Collector Dockerfile (amd64 + arm64) | A | ✅ | `collector/Dockerfile` and `collector/compose.yml` (host networking, spool bind mount, small Docker logs). Built on the Pi; not yet built in CI (M1.14) |
-| M0.20 | Move the collector to the Raspberry Pi: 64-bit OS, Tailscale, Docker, its own `add-collector` key | A | ✅ | Switched 2026-11-07 as `pi-daniel`, with the PC's flight-list progress copied over. pc-daniel's spool was fully uploaded; keep its `spool/sent` until backups exist (D1). The Pi's code was copied by hand, not cloned from git yet |
+| M0.20 | Move the collector to the Raspberry Pi: 64-bit OS, Tailscale, Docker, its own `add-collector` key | A | ✅ | Switched 2026-11-07 as `pi-daniel`, with the PC's flight-list progress copied over. pc-daniel's spool was fully uploaded; keep its `spool/sent` until backups exist (D1). Since 2026-11-16 the Pi's `~/airspace` is a git checkout of `main` (converted in place; `spool/` and `.env` untouched) |
 
 ## M1 · Platform (weeks 1–2)
 
