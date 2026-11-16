@@ -46,7 +46,7 @@ These live in `libs/airspace_common` and are used by every pipeline and by model
 
 **Where it runs**
 - **Windows PC (2026-10-29 to 11-07, now stopped):** a Python 3.12 process (`uv run -m collector`) registered in Windows Task Scheduler: trigger *At startup*, *Run whether user is logged on or not*, restart every 1 min on failure (999 attempts), no time limit. Windows power plan: never sleep while plugged in. Docker Desktop is not used on Windows because it only starts after a user signs in.
-- **Raspberry Pi (since 2026-11-07, [D5](11-tasks.md#decided-while-building)):** runs 24/7 on a 64-bit OS with the arm64 Docker image (`collector/Dockerfile`), Docker Engine and `restart: unless-stopped`: `docker compose -f collector/compose.yml up -d --build` from the repo root, with `.env` there and `spool/` bind-mounted. Its `INGEST_URL` uses the VM's Tailscale IP (`100.80.31.53`), not its name, because Tailscale DNS is off on the Pi (since 2026-11-16).
+- **Raspberry Pi (since 2026-11-07, [D5](11-tasks.md#decided-while-building)):** runs 24/7 on a 64-bit OS with the arm64 Docker image (`collector/Dockerfile`), Docker Engine and `restart: unless-stopped`: `docker compose -f collector/compose.yml up -d --build` from the repo root, with `.env` there and `spool/` bind-mounted. `~/airspace` is a git checkout of `main`: update with `git pull` and the same command. Its `INGEST_URL` uses the VM's Tailscale IP (`100.80.31.53`), not its name, because Tailscale DNS is off on the Pi (since 2026-11-16).
 
 **State-vector loop**
 1. Next slot: `next = ceil(now / CADENCE_SECONDS) × CADENCE_SECONDS`. Sleep until then. The clock is NTP-synced.
