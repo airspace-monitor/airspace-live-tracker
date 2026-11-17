@@ -69,12 +69,12 @@ async def run_states(
     spool: Spool,
     max_unreachable_slots: int = MAX_UNREACHABLE_SLOTS,
 ) -> None:
-    cadence, offset = settings.cadence_seconds, settings.offset_seconds
+    cadence = settings.cadence_seconds
     last_slot = 0.0
     blocked_until = 0.0
     unreachable = 0
     while True:
-        slot = max(next_slot(time.time(), cadence, offset), last_slot + cadence)
+        slot = max(next_slot(time.time(), cadence), last_slot + cadence)
         await asyncio.sleep(max(0.0, slot - time.time()))
         last_slot = slot
         if time.time() < blocked_until:

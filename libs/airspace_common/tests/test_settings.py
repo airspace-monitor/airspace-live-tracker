@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
 from airspace_common.settings import CollectorSettings
 
@@ -9,7 +8,6 @@ REQUIRED = {
     "COLLECTOR_ID": "pc-daniel",
     "OPENSKY_CLIENT_ID": "client-id",
     "OPENSKY_CLIENT_SECRET": "s3cr3t-value",
-    "OFFSET_SECONDS": "0",
 }
 
 
@@ -29,10 +27,10 @@ def test_defaults_match_the_pipeline_doc(env: pytest.MonkeyPatch) -> None:
     assert settings.spool_dir == Path("spool")
 
 
-def test_offset_other_than_0_or_45_is_rejected(env: pytest.MonkeyPatch) -> None:
-    env.setenv("OFFSET_SECONDS", "30")
-    with pytest.raises(ValidationError):
-        CollectorSettings()
+def test_a_leftover_offset_in_dotenv_is_ignored(env: pytest.MonkeyPatch) -> None:
+    # Collectors set up before M1.21 still have OFFSET_SECONDS in their .env.
+    env.setenv("OFFSET_SECONDS", "45")
+    assert not hasattr(CollectorSettings(), "offset_seconds")
 
 
 def test_secret_never_appears_in_repr(env: pytest.MonkeyPatch) -> None:
@@ -50,4 +48,3 @@ def test_values_are_read_from_dotenv_in_working_directory(
     )
     settings = CollectorSettings()
     assert settings.collector_id == "pc-daniel"
-    assert settings.offset_seconds == 45

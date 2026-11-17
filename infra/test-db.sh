@@ -23,7 +23,7 @@ dc exec -T db psql -U postgres -d airspace -q -f - < ../db/tests/test_schema.sql
 
 dc build ingest-api
 dc up -d --wait ingest-api
-key=$(dc run --rm -T ingest-admin add-collector --id smoke-01 --owner test --offset 0)
+key=$(dc run --rm -T ingest-admin add-collector --id smoke-01 --owner test)
 dc exec -T -e COLLECTOR_KEY="$key" ingest-api python - < ../db/tests/ingest_smoke.py
 
 # Dagster: the webserver loads the `airspace` code location from dagster-code.

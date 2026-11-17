@@ -25,7 +25,6 @@ async def run(settings: CollectorSettings) -> None:
     log.info(
         "collector_started",
         cadence_seconds=settings.cadence_seconds,
-        offset_seconds=settings.offset_seconds,
         upload_enabled=settings.upload_enabled,
         flight_lists_enabled=settings.flight_lists_enabled,
         spool_dir=str(settings.spool_dir.resolve()),

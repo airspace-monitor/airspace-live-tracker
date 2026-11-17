@@ -1,6 +1,6 @@
 """`collector_gap_check` (docs/04-pipelines.md#collector_gap_check).
 
-A gap is a run of at least 4 consecutive slots on a collector's 90 s grid without a successful
+A gap is a run of at least 4 consecutive slots on the shared 90 s grid without a successful
 `states_global` batch. Each gap becomes one `collector_gap` event, keyed by its first missed slot,
 so re-running a window (or overlapping windows) never duplicates an event. A gap that began
 before the window keeps its real start: the last success before the window is looked up.
@@ -33,10 +33,10 @@ WINDOW = timedelta(hours=2)
 UPLOAD_GRACE = timedelta(minutes=5)
 
 
-def slot_of(ts: datetime, offset_s: int, cadence_s: int = CADENCE_S) -> datetime:
+def slot_of(ts: datetime, cadence_s: int = CADENCE_S) -> datetime:
     """The start of the grid slot a request made at `ts` belongs to."""
-    epoch = ts.timestamp() - offset_s
-    return datetime.fromtimestamp(epoch - epoch % cadence_s + offset_s, UTC)
+    epoch = ts.timestamp()
+    return datetime.fromtimestamp(epoch - epoch % cadence_s, UTC)
 
 
 def find_gaps(
@@ -46,12 +46,11 @@ def find_gaps(
     end: datetime,
     cadence_s: int = CADENCE_S,
     min_missed: int = MIN_MISSED_SLOTS,
-    offset_s: int = 0,
 ) -> list[datetime]:
     """First missed slot of every gap among the slots in `[start, end)`."""
     step = timedelta(seconds=cadence_s)
     ok = set(ok_slots)
-    first = slot_of(start, offset_s, cadence_s)
+    first = slot_of(start, cadence_s)
     if first < start:
         first += step
     gaps: list[datetime] = []
@@ -79,7 +78,7 @@ def find_gaps(
     return gaps
 
 
-COLLECTORS_SQL = "SELECT collector_id, offset_seconds FROM ops.collectors WHERE disabled_at IS NULL"
+COLLECTORS_SQL = "SELECT collector_id FROM ops.collectors WHERE disabled_at IS NULL"
 OK_REQUESTS_SQL = """
 SELECT requested_at FROM ops.ingest_batches
 WHERE collector_id = %s AND query_kind = 'states_global' AND http_status = 200
@@ -99,12 +98,12 @@ ON CONFLICT (dedupe_key) DO NOTHING
 def check_window(conn: psycopg.Connection, start: datetime, end: datetime) -> int:
     """Inserts the window's `collector_gap` events and returns how many were new."""
     new = 0
-    for collector_id, offset_s in conn.execute(COLLECTORS_SQL).fetchall():
+    for (collector_id,) in conn.execute(COLLECTORS_SQL).fetchall():
         rows = conn.execute(OK_REQUESTS_SQL, (collector_id, start, end)).fetchall()
-        ok = {slot_of(r[0], offset_s) for r in rows}
+        ok = {slot_of(r[0]) for r in rows}
         last_ok = conn.execute(LAST_OK_SQL, (collector_id, start)).fetchone()
-        last_ok_slot = slot_of(last_ok[0], offset_s) if last_ok and last_ok[0] else None
-        for gap_start in find_gaps(ok, last_ok_slot, start, end, offset_s=offset_s):
+        last_ok_slot = slot_of(last_ok[0]) if last_ok and last_ok[0] else None
+        for gap_start in find_gaps(ok, last_ok_slot, start, end):
             key = f"collector_gap:{collector_id}:{gap_start.strftime('%Y-%m-%dT%H:%M:%SZ')}"
             title = f"No data from {collector_id} since {gap_start:%Y-%m-%d %H:%M} UTC"
             payload = psycopg.types.json.Jsonb(
