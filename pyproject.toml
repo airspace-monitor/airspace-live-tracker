@@ -32,7 +32,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC"]
 known-first-party = ["airspace_common", "api", "collector", "ingest", "orchestrator"]
 
 [tool.pytest.ini_options]
-testpaths = ["collector/tests", "libs/airspace_common/tests", "services/api/tests", "services/ingest/tests", "services/orchestrator/tests"]
+testpaths = ["collector/tests", "db/seeds", "libs/airspace_common/tests", "services/api/tests", "services/ingest/tests", "services/orchestrator/tests"]
 
 [tool.mypy]
 strict = true

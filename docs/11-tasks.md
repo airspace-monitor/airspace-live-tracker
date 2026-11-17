@@ -5,7 +5,7 @@ The working task list for the whole application, by milestone ([10](10-roadmap.m
 Status: ✅ done · 🟡 in progress · ⬜ to do · ⛔ blocked (the note says on what).
 Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#work-split)). Track A is owned by Dániel, Track B by Alek.
 
-*Last updated: 2026-11-16.*
+*Last updated: 2026-11-17.*
 
 ## What exists now
 
@@ -18,7 +18,8 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 | Collection | **pi-daniel collecting 24/7 since 2026-11-07** on the Raspberry Pi (Debian 13 arm64, 4 GB RAM, 64 GB microSD) in Docker (`collector/compose.yml`). pc-daniel collected 2026-10-29 to 11-07, off overnight; its task `airspace-collector` is stopped and must stay disabled (D4) |
 | Server | Oracle A1 VM `airspace-vm` (Frankfurt, 2 OCPU, 12 GB, 200 GB) with Docker and Tailscale, created 2026-10-30. No inbound ports open to the internet. Runs the database and ingest-api from a git checkout of `main`, deployed with `infra/deploy.sh` |
 | Pipeline | pc-daniel uploads to ingest-api on the VM over Tailscale; batches land in TimescaleDB. On 2026-11-03: 2,780 snapshots, 27.5M state vectors, 314k flight-list rows, nothing rejected; database 6.5 GB, uncompressed |
-| Not started | stream worker, Dagster jobs, Grafana, web app, ML, LLM |
+| Orchestrator | Dagster on the VM (tailnet `:3000`): `backup` daily 04:00 UTC to R2, `collector_gap_check` every 5 min |
+| Not started | stream worker, Grafana, web app, ML, LLM |
 | public-api | `services/api` serves all of M2.1 as `app_reader`: `/live/snapshot`, `/stats`, `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/live/stream` (SSE), `/health` |
 
 ## Open questions found while building
@@ -28,7 +29,6 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 | Q1 | The remaining decisions flagged in the 2026-10-29 decision review: chat as free text-to-SQL vs fixed query tools; single VM vs k3s or managed services; Oracle vs Contabo; Dagster vs cron; TimescaleDB as the only store | Each is cheaper to change now than after M1 |
 | Q2 | Zenodo record for the route fallback. DOI 10.5281/zenodo.3737101 (2019–2022, has `icao24`) has a non-commercial licence; 10.5281/zenodo.5815448 (2019–2021, anonymised aircraft) is CC BY 4.0. Routes only need `callsign`, `origin` and `destination` | Decide before M3.5; the README and [02](02-data-sources.md) cite the record in use |
 | Q3 | `flights_sessionizer` reads the last 30 min, so a backlog drained after an outage is never turned into flights without a manual `flights_rebuild` | With one home collector, outages will happen; those arrivals are lost as ETA labels |
-| Q4 | `ref.runways` primary key `(airport_icao, le_ident)` fails on OurAirports rows with empty identifiers | Breaks the M1.18 seed loader |
 | Q5 | CARTO basemap: raster tiles need an API key. Add the key, a tile budget and the Pages preview origins to [08](08-frontend.md) | Needed for M2 |
 | Q6 | A stream-worker outage over 10 min loses squawk and go-around events until someone runs `events_rebuild` | Add bounded catch-up on startup, or schedule the rebuild |
 | Q7 | `agg_backfill_refresh` only looks back 65 min | One failed run leaves late data unmaterialised for good |
@@ -42,7 +42,7 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 | Q15 | A reference device and connection for the "< 3 s, 60 fps" criterion in [00](00-overview.md#success-criteria) | Otherwise it can't be tested |
 | Q16 | Raw compression is 2.9× (69 B/row) against the ~10× estimated; sorted Parquet reached 17 B/row. Check the `segmentby`/`orderby` settings and the index on the compressed chunks | At 24/7 collection 90 days is ~60–65 GB instead of ~30 GB; it still fits the 200 GB disk |
 
-Q4–Q15 carry over the findings still open from the 2026-10-30 documentation review.
+Q5–Q15 carry over the findings still open from the 2026-10-30 documentation review.
 
 ## Decided while building
 
@@ -57,6 +57,7 @@ Q4–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | D7 | R2 stays inside its 10 GB free tier: backups plus archives are capped at 8 GB. The daily `backup` job deletes the oldest `airspace-archive` files when the total passes the cap; backups (14 days) are never deleted for it | Enabling R2 needs a card, and nothing may be billed. At ~0.2 GB of Parquet a day the archive holds the last ~5 weeks, more than the Pi's 30 days; older raw data lives only in the database (90 days) (decided 2026-11-08) |
 | D8 | `pg_dump` runs from the dagster-code container as a read-only `backup` role (`pg_read_all_data`), not inside the database container | Running it in the database container would need the Docker socket in Dagster, which is root on the VM (decided 2026-11-08) |
 | D9 | The collector exits after 10 consecutive slots with no response from OpenSky, so Docker restarts it | A Pi reboot on 2026-11-13 left the container with an empty `resolv.conf`; it collected nothing for 2.7 days without crashing, and a restart fixed it (decided 2026-11-16) |
+| D10 | The OurAirports seed loads airports with an ICAO code and an elevation (10,398 of 86,371), and open runways with an `le_ident` (11,211); a repeated `(airport, le_ident)` keeps the longest runway. Resolves Q4 | 335 ICAO airports have no elevation and a guessed 0 would give wrong heights; 16 runways have no identifier and 2 identifiers repeat. None of them is at a target airport (decided 2026-11-17) |
 
 ## M0 · Foundations (weeks 0–1)
 
@@ -69,7 +70,7 @@ Q4–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M0.7 | Python workspace, lint, type check, tests | A | ✅ | |
 | M0.8 | Collector v0 (loop, spool, failures, flight lists, lock, status) | A | ✅ | `collector/` |
 | M0.9 | Run the collector on pc-daniel as a scheduled task | A | ✅ | Task `airspace-collector` (S4U, at startup) since 2026-10-29. Switched off overnight until the Pi takes over (D5) |
-| M0.13 | 48 h check: a spool file every 90 s; yesterday's flight lists arrive | A | ⬜ | Runs on the Pi from 2026-11-07; check on 2026-11-09 |
+| M0.13 | 48 h check: a spool file every 90 s; yesterday's flight lists arrive | A | ✅ | Checked 2026-11-17 over the last 24–48 h: 875 of 931 slots succeeded (94%; the failures are Pi Wi-Fi drops) and all 24 flight-list windows arrived |
 | M0.14 | Write measured rows/day and file sizes into [01 Sizing](01-architecture.md#sizing) | A | 🟡 | Rows/day, bytes/row and compressed size measured on the VM and written into 01. Left: Parquet sizes after M1.19 |
 | M0.15 | Request the Oracle A1 VM; order the Contabo fallback if none by the end of week 1 | A | ✅ | VM created 2026-10-30; no fallback needed. Cost Analysis shows 0 HUF for 2026-10-30 to 11-05 |
 | M0.16 | Teammate review of the docs rewrite (pushed to `main` without a PR) | B | ⬜ | Commit `5ad79a1` |
@@ -99,7 +100,7 @@ Q4–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M1.15 | `deploy.yml` and `infra/deploy.sh` (Tailscale, pull → migrate → up), GHCR | A | ✅ | Live since 2026-11-08: every merge to `main` runs CI, then deploys to the VM over Tailscale (first automatic deploy: PR #12). Images build on the VM; GHCR deferred |
 | M1.16 | Daily `backup` job to R2; restore drill | A | ✅ | Live 2026-11-16 (Dagster, daily 04:00 UTC). First backup 0.78 MB, since raw chunk data is left out. Restore drill from R2 into a scratch database matched the live `ops` tables. CI repeats the drill on every PR. Raw data is not in the backups: until M1.20 its only off-VM copies are the collectors' `spool/sent` |
 | M1.17 | Local dev command with the fixture database | A | ⬜ | |
-| M1.18 | OurAirports seed loader `db/seeds/ourairports.py` (`ref.airports`, `ref.runways`) | A | ⬜ | D2 |
+| M1.18 | OurAirports seed loader `db/seeds/ourairports.py` (`ref.airports`, `ref.runways`) | A | ✅ | 2026-11-17: 10,398 airports and 11,211 runways ([D10](#decided-while-building)); LOWW, LZIB and LHBP flagged as targets. `infra/test-db.sh` loads a fixture twice |
 | M1.19 | Spool compaction to Parquet at 00:30 UTC (uploaded files only) | A | ⬜ | D1; after M1.8 |
 | M1.20 | R2 bucket `airspace-archive`, `rclone copy` at 01:00 UTC, local retention (`ARCHIVE_RETENTION_DAYS=30`, `RCLONE_REMOTE`) | A | ⬜ | D1, D6; needs a Cloudflare account |
 | M1.21 | Remove the leftover collector offset: forward migration dropping `ops.collectors.offset_seconds`, `OFFSET_SECONDS` in settings and `.env.example`, `--offset` in the admin CLI | A | ⬜ | The docs already describe one collector on a plain 90 s grid. Harmless until then: the offset is 0 |

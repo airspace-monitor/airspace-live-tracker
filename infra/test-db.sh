@@ -79,3 +79,27 @@ BEGIN
 END $$;
 SQL
 echo "collector_gap_check test passed"
+
+# OurAirports seed (M1.18): load the fixture twice as `jobs`; re-running changes nothing.
+for _ in 1 2; do
+  dc run --rm -T -v "$(cd .. && pwd)/db:/db:ro" dagster-code \
+    python /db/seeds/ourairports.py --from-dir /db/tests/ourairports
+done
+dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
+DO $$
+BEGIN
+  IF (SELECT array_agg(icao ORDER BY icao) FROM ref.airports) <> ARRAY['LHBP', 'LOAN', 'LOWW', 'LZIB'] THEN
+    RAISE EXCEPTION 'unexpected ref.airports rows';
+  END IF;
+  IF (SELECT array_agg(icao ORDER BY icao) FROM ref.airports WHERE is_target) <> ARRAY['LHBP', 'LOWW', 'LZIB'] THEN
+    RAISE EXCEPTION 'target airports not flagged';
+  END IF;
+  IF (SELECT round(ST_Distance(geom, ST_MakePoint(16.5697, 48.110298)::geography)) FROM ref.airports WHERE icao = 'LOWW') <> 0 THEN
+    RAISE EXCEPTION 'LOWW geom does not match lat/lon';
+  END IF;
+  IF (SELECT count(*) FROM ref.runways) <> 3 THEN
+    RAISE EXCEPTION 'expected 3 runways';
+  END IF;
+END $$;
+SQL
+echo "ourairports seed test passed"
