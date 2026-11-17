@@ -8,6 +8,7 @@ import structlog
 
 from airspace_common.log import configure_logging
 from airspace_common.settings import CollectorSettings
+from collector.archive import run_archive
 from collector.flights import run_flight_lists
 from collector.lock import AlreadyRunning, single_instance
 from collector.opensky import OpenSky, TokenProvider
@@ -35,7 +36,7 @@ async def run(settings: CollectorSettings) -> None:
             client, settings.opensky_client_id, settings.opensky_client_secret.get_secret_value()
         )
         opensky = OpenSky(client, tokens)
-        jobs = [run_states(settings, opensky, spool)]
+        jobs = [run_states(settings, opensky, spool), run_archive(spool)]
         if settings.flight_lists_enabled:
             jobs.append(run_flight_lists(opensky, spool, settings.collector_id))
         if settings.upload_enabled:
