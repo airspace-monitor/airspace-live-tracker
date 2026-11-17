@@ -20,6 +20,15 @@ BEGIN
   END IF;
 END $$;
 
+-- M1.21: the two-collector offset is gone
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'ops' AND column_name = 'offset_seconds') THEN
+    RAISE EXCEPTION 'ops.collectors.offset_seconds still exists';
+  END IF;
+END $$;
+
 INSERT INTO ops.collectors (collector_id, owner, api_key_hash) VALUES ('test-01', 'test', 'x');
 
 -- ingest_writer: stores a batch; re-uploading it changes nothing
