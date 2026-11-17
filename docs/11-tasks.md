@@ -103,7 +103,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M1.18 | OurAirports seed loader `db/seeds/ourairports.py` (`ref.airports`, `ref.runways`) | A | ✅ | 2026-11-17: 10,398 airports and 11,211 runways ([D10](#decided-while-building)); LOWW, LZIB and LHBP flagged as targets. `infra/test-db.sh` loads a fixture twice |
 | M1.19 | Spool compaction to Parquet at 00:30 UTC (uploaded files only) | A | ⬜ | D1; after M1.8 |
 | M1.20 | R2 bucket `airspace-archive`, `rclone copy` at 01:00 UTC, local retention (`ARCHIVE_RETENTION_DAYS=30`, `RCLONE_REMOTE`) | A | ⬜ | D1, D6; needs a Cloudflare account |
-| M1.21 | Remove the leftover collector offset: forward migration dropping `ops.collectors.offset_seconds`, `OFFSET_SECONDS` in settings and `.env.example`, `--offset` in the admin CLI | A | ⬜ | The docs already describe one collector on a plain 90 s grid. Harmless until then: the offset is 0 |
+| M1.21 | Remove the leftover collector offset: forward migration dropping `ops.collectors.offset_seconds`, `OFFSET_SECONDS` in settings and `.env.example`, `--offset` in the admin CLI | A | ✅ | 2026-11-17, in two steps so each migration worked with the running code: the code stopped using it (column default 0), then the column was dropped and `ops.v_collectors` recreated. A leftover `OFFSET_SECONDS` in a `.env` is ignored |
 
 ## M2 · Live map (weeks 2–4)
 
