@@ -69,12 +69,15 @@ done
 dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
 DO $$
 BEGIN
-  IF (SELECT array_agg(dedupe_key) FROM core.events WHERE dedupe_key LIKE 'collector_gap:test-01:%')
+  -- The daemon's own schedule may also run during the test, so only this window is checked.
+  IF (SELECT array_agg(dedupe_key) FROM core.events WHERE dedupe_key LIKE 'collector_gap:test-01:%'
+        AND ts >= '2026-10-30 12:00Z' AND ts < '2026-10-30 12:10:30Z')
      IS DISTINCT FROM ARRAY['collector_gap:test-01:2026-10-30T12:03:00Z'] THEN
     RAISE EXCEPTION 'expected exactly one gap event for test-01 at 12:03:00';
   END IF;
-  IF (SELECT count(*) FROM ops.job_runs WHERE job = 'collector_gap_check' AND status = 'ok') <> 2 THEN
-    RAISE EXCEPTION 'expected two ok collector_gap_check job_runs rows';
+  IF (SELECT count(*) FROM ops.job_runs WHERE job = 'collector_gap_check' AND status = 'ok'
+        AND window_start = '2026-10-30 12:00Z' AND window_end = '2026-10-30 12:10:30Z') <> 2 THEN
+    RAISE EXCEPTION 'expected two ok collector_gap_check job_runs rows for the test window';
   END IF;
 END $$;
 SQL
@@ -130,7 +133,7 @@ BEGIN
   IF (SELECT n_global_snapshots FROM agg.coverage_15m WHERE bucket = '2026-10-29 10:00Z') <> 1 THEN
     RAISE EXCEPTION 'agg.coverage_15m should count one snapshot';
   END IF;
-  IF (SELECT status FROM ops.job_runs WHERE job = 'agg_backfill_refresh' ORDER BY run_id DESC LIMIT 1) <> 'ok' THEN
+  IF EXISTS (SELECT 1 FROM ops.job_runs WHERE job = 'agg_backfill_refresh' AND status <> 'ok') THEN
     RAISE EXCEPTION 'agg_backfill_refresh did not finish ok';
   END IF;
 END $$;
