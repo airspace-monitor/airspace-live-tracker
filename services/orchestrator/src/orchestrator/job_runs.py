@@ -18,10 +18,16 @@ class Run:
 
 @contextmanager
 def recorded_run(
-    settings: JobsSettings, job: str, window_start: datetime, window_end: datetime
+    settings: JobsSettings,
+    job: str,
+    window_start: datetime,
+    window_end: datetime,
+    autocommit: bool = False,
 ) -> Iterator[Run]:
     """Connects as `jobs`, marks the run `running`, and yields a connection whose work commits
-    in one transaction. The row ends `ok` with `rows_out`, or `failed` with the error."""
+    in one transaction (or statement by statement with `autocommit`, for procedures such as
+    `refresh_continuous_aggregate`). The row ends `ok` with `rows_out`, or `failed` with the
+    error."""
     password = settings.jobs_password.get_secret_value()
     with psycopg.connect(
         host=settings.jobs_db_host,
@@ -37,7 +43,11 @@ def recorded_run(
         ).fetchone()[0]  # type: ignore[index]
         try:
             with psycopg.connect(
-                host=settings.jobs_db_host, user="jobs", dbname="airspace", password=password
+                host=settings.jobs_db_host,
+                user="jobs",
+                dbname="airspace",
+                password=password,
+                autocommit=autocommit,
             ) as work_conn:
                 run = Run(work_conn)
                 yield run

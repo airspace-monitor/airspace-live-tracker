@@ -125,7 +125,7 @@ Every job takes an explicit `[window_start, window_end)`, writes one `ops.job_ru
 | `destination_inference` | every 5 min | `active` flights | `core.flights`, `ref.callsign_routes` | `ml.dest_predictions` |
 | `metar_fetch` | every 30 min at :05, :35 | last 3 h of reports | aviationweather.gov | `core.metar` |
 | `anomaly_scoring` | every 15 min at +2 min | the bucket that just closed | `agg.traffic_h3_15m`, `agg.coverage_15m`, `agg.baseline_h3_how` | `ml.anomalies`, `core.events` |
-| `agg_backfill_refresh` | hourly at :10 | days touched by late batches | `ops.ingest_batches` | `agg.traffic_h3_15m` |
+| `agg_backfill_refresh` | hourly at :10 | batches received since the last successful run; refreshes the days they touch | `ops.ingest_batches` | `agg.traffic_h3_15m` |
 | `baseline_recompute` | daily 02:00 | 28 days before today 00:00 | `agg.traffic_h3_15m`, `agg.coverage_15m` | `agg.baseline_h3_how` |
 | `flight_labels_merge` | daily 08:00 | yesterday | `raw.opensky_flights`, `core.flights` | `core.flights` |
 | `routes_refresh` | daily 08:30 | 28 days before today 00:00 | `raw.opensky_flights`, Zenodo Parquet | `ref.callsign_routes` |
@@ -168,7 +168,9 @@ For each finalized `core.flights` row of the window, find the `raw.opensky_fligh
 
 ### `agg_backfill_refresh`
 
-Find successful `states_global` batches received in the last 65 min whose `snapshot_time` is more than 2 h before `received_at`. If there are any, call `refresh_continuous_aggregate` for whole UTC days from the earliest to the latest such `snapshot_time`.
+Find successful `states_global` batches received in the window whose `snapshot_time` is more than 2 h before `received_at`. If there are any, call `refresh_continuous_aggregate` for whole UTC days from the earliest to the latest such `snapshot_time` (ending no later than the window end).
+
+**Window ([D11](11-tasks.md#decided-while-building)):** a scheduled run covers `received_at` from the end of the last successful run to the tick, so a failed run never leaves late data unmaterialised. The first run looks back 65 min, and the look-back is capped at 7 days. A manual run can pass both ends.
 
 ### `collector_gap_check`
 

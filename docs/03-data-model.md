@@ -331,7 +331,9 @@ Detection rules are in [04](04-pipelines.md).
 ## `agg`: aggregates
 
 ```sql
--- Traffic density per H3 cell per 15 minutes (airborne only)
+-- Traffic density per H3 cell per 15 minutes (airborne only). Created as jobs (SET ROLE jobs),
+-- which must own it to call refresh_continuous_aggregate; ALTER ... OWNER afterwards would need
+-- CREATE on _timescaledb_internal, which only a superuser can grant.
 CREATE MATERIALIZED VIEW agg.traffic_h3_15m
 WITH (timescaledb.continuous, timescaledb.materialized_only = true) AS
 SELECT time_bucket('15 minutes', snapshot_time) AS bucket,
@@ -343,7 +345,6 @@ FROM raw.state_vectors
 WHERE h3_r4 IS NOT NULL AND NOT on_ground
 GROUP BY 1, 2
 WITH NO DATA;
-ALTER MATERIALIZED VIEW agg.traffic_h3_15m OWNER TO jobs;   -- jobs must own it to call refresh_continuous_aggregate
 
 SELECT add_continuous_aggregate_policy('agg.traffic_h3_15m',
   start_offset => interval '2 hours', end_offset => interval '15 minutes',

@@ -69,12 +69,15 @@ done
 dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
 DO $$
 BEGIN
-  IF (SELECT array_agg(dedupe_key) FROM core.events WHERE dedupe_key LIKE 'collector_gap:test-01:%')
+  -- The daemon's own schedule may also run during the test, so only this window is checked.
+  IF (SELECT array_agg(dedupe_key) FROM core.events WHERE dedupe_key LIKE 'collector_gap:test-01:%'
+        AND ts >= '2026-10-30 12:00Z' AND ts < '2026-10-30 12:10:30Z')
      IS DISTINCT FROM ARRAY['collector_gap:test-01:2026-10-30T12:03:00Z'] THEN
     RAISE EXCEPTION 'expected exactly one gap event for test-01 at 12:03:00';
   END IF;
-  IF (SELECT count(*) FROM ops.job_runs WHERE job = 'collector_gap_check' AND status = 'ok') <> 2 THEN
-    RAISE EXCEPTION 'expected two ok collector_gap_check job_runs rows';
+  IF (SELECT count(*) FROM ops.job_runs WHERE job = 'collector_gap_check' AND status = 'ok'
+        AND window_start = '2026-10-30 12:00Z' AND window_end = '2026-10-30 12:10:30Z') <> 2 THEN
+    RAISE EXCEPTION 'expected two ok collector_gap_check job_runs rows for the test window';
   END IF;
 END $$;
 SQL
@@ -103,3 +106,40 @@ BEGIN
 END $$;
 SQL
 echo "ourairports seed test passed"
+
+# Aggregates (M1.10): a batch received now for 2026-10-29 10:00 is late, so agg_backfill_refresh
+# materialises that day. Only airborne rows with an H3 cell count; app_reader can read the result.
+dc exec -T db psql -U postgres -d airspace -q -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO ops.ingest_batches (batch_id, collector_id, query_kind, requested_at, snapshot_time, http_status)
+VALUES ('00000000-0000-7000-8000-0000000000b1', 'test-01', 'states_global', '2026-10-29 10:00:01Z', '2026-10-29 10:00:00Z', 200);
+INSERT INTO raw.state_vectors (snapshot_time, icao24, batch_id, h3_r4, on_ground, baro_altitude_m, vertical_rate_ms) VALUES
+  ('2026-10-29 10:00Z', 'a00001', '00000000-0000-7000-8000-0000000000b1', 595183493020581887, false, 10000, -5),
+  ('2026-10-29 10:00Z', 'a00002', '00000000-0000-7000-8000-0000000000b1', 595183493020581887, false, 8000, 0),
+  ('2026-10-29 10:00Z', 'a00003', '00000000-0000-7000-8000-0000000000b1', 595183493020581887, true, 200, 0),
+  ('2026-10-29 10:00Z', 'a00004', '00000000-0000-7000-8000-0000000000b1', NULL, false, 9000, 0);
+SQL
+agg_window="{\"ops\": {\"agg_backfill_refresh_op\": {\"config\": {\"window_start\": \"$(date -u -d '-1 hour' +%FT%T+00:00)\", \"window_end\": \"$(date -u -d '+1 minute' +%FT%T+00:00)\"}}}}"
+echo "$agg_window" | dc exec -T dagster-code sh -c 'cat > /tmp/agg_window.yaml'
+dc exec -T dagster-code dagster job execute -m orchestrator.definitions -j agg_backfill_refresh \
+  -c /tmp/agg_window.yaml >/dev/null
+dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
+DO $$
+DECLARE r record;
+BEGIN
+  SELECT * INTO r FROM agg.traffic_h3_15m WHERE bucket = '2026-10-29 10:00Z';
+  IF r IS NULL OR r.n_obs <> 2 OR r.avg_alt_m <> 9000 OR r.n_descending <> 1 THEN
+    RAISE EXCEPTION 'unexpected agg.traffic_h3_15m row: %', r;
+  END IF;
+  IF (SELECT n_global_snapshots FROM agg.coverage_15m WHERE bucket = '2026-10-29 10:00Z') <> 1 THEN
+    RAISE EXCEPTION 'agg.coverage_15m should count one snapshot';
+  END IF;
+  IF EXISTS (SELECT 1 FROM ops.job_runs WHERE job = 'agg_backfill_refresh' AND status <> 'ok') THEN
+    RAISE EXCEPTION 'agg_backfill_refresh did not finish ok';
+  END IF;
+END $$;
+SET ROLE app_reader;
+SELECT count(*) FROM agg.traffic_h3_15m;
+SELECT count(*) FROM agg.coverage_15m;
+RESET ROLE;
+SQL
+echo "aggregates test passed"
