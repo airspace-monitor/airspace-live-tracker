@@ -30,6 +30,7 @@ import pyarrow.compute as pc
 import pyarrow.parquet as pq
 import structlog
 
+from collector.archive_upload import ArchiveUploader
 from collector.spool import Spool
 
 log = structlog.get_logger()
@@ -232,7 +233,10 @@ def next_run(now: datetime) -> datetime:
     return run if run > now else run + timedelta(days=1)
 
 
-async def run_archive(spool: Spool) -> None:
+async def run_archive(spool: Spool, uploader: "ArchiveUploader | None" = None) -> None:
+    """Daily at 00:30 UTC: compact, then (with R2 configured) upload and apply retention."""
+    if uploader is None:
+        log.warning("archive_upload_not_configured", detail="set R2_ACCOUNT_ID and R2 keys")
     while True:
         now = datetime.now(UTC)
         await asyncio.sleep((next_run(now) - now).total_seconds())
@@ -241,3 +245,8 @@ async def run_archive(spool: Spool) -> None:
             log.info("archive_run", days=[d.isoformat() for d in days])
         except Exception:
             log.exception("archive_run_crashed")
+        if uploader is not None:
+            try:
+                await asyncio.to_thread(uploader.run, datetime.now(UTC).date())
+            except Exception:
+                log.exception("archive_upload_failed")

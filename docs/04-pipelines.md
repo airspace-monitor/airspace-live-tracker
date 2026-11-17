@@ -10,7 +10,7 @@ flowchart TB
     W --> U["uploader → POST /ingest/v1/batches"]
     U -->|"2xx"| M["spool/sent/"]
     U -->|"422"| RJ["spool/rejected/"]
-    M --> D["00:30 UTC compaction → spool/archive/*.parquet → R2"]
+    M --> D["00:30 UTC compaction → spool/archive/*.parquet → R2 upload"]
   end
   subgraph P2["P2 Ingest (server)"]
     V["validate + normalise + h3"] --> I["INSERT … ON CONFLICT DO NOTHING"]
@@ -87,12 +87,12 @@ These live in `libs/airspace_common` and are used by every pipeline and by model
 - zstd, one row group per hour, sorted by `icao24` and `snapshot_time` within the hour (a whole-day sort needs more RAM than the Pi has).
 - The JSON is deleted only after the archive is fsynced, renamed into place and its row count checked. An existing archive is never overwritten.
 
- At 01:00 UTC, `rclone copy` the archive to Cloudflare R2 `airspace-archive/<collector_id>/`. Local archives older than `ARCHIVE_RETENTION_DAYS` (30) are deleted, which keeps about 6 GB on the Pi's SD card ([D6](11-tasks.md#decided-while-building)). R2 keeps archives until the 8 GB cap, about 5 weeks ([D7](11-tasks.md#decided-while-building)).
+Right after the compaction, `rclone copy` puts the archive into Cloudflare R2 `airspace-archive/<collector_id>/` (finished files only; `collector/archive_upload.py`). Local archives older than `ARCHIVE_RETENTION_DAYS` (30) are then deleted, but only those R2 holds at the same size, which keeps about 6 GB on the Pi's SD card ([D6](11-tasks.md#decided-while-building)); if uploads stop working, nothing is deleted. R2 keeps archives until the 8 GB cap, about 5 weeks ([D7](11-tasks.md#decided-while-building)). The Pi's R2 token can only read and write `airspace-archive`. Without `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` the upload and the retention are skipped.
 
 **Spool-only mode:** `UPLOAD_ENABLED=false`, used from M0 before the server exists. When the server is live, set it to `true`; the uploader drains `pending/` (see [Catch-up](#catch-up-after-an-outage-or-the-m0-backlog)).
 
 **Config (env, documented in `.env.example`):**
-`COLLECTOR_ID`, `OPENSKY_CLIENT_ID`, `OPENSKY_CLIENT_SECRET`, `INGEST_URL`, `INGEST_API_KEY`, `CADENCE_SECONDS=90`, `SPOOL_DIR`, `UPLOAD_ENABLED=true`, `FLIGHT_LISTS_ENABLED=true`, `ARCHIVE_RETENTION_DAYS=30`, `RCLONE_REMOTE=r2:airspace-archive`. There is no other cadence or query configuration.
+`COLLECTOR_ID`, `OPENSKY_CLIENT_ID`, `OPENSKY_CLIENT_SECRET`, `INGEST_URL`, `INGEST_API_KEY`, `CADENCE_SECONDS=90`, `SPOOL_DIR`, `UPLOAD_ENABLED=true`, `FLIGHT_LISTS_ENABLED=true`, `ARCHIVE_RETENTION_DAYS=30`, `RCLONE_REMOTE=r2:airspace-archive`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. There is no other cadence or query configuration.
 
 ## P2 · Ingest
 
