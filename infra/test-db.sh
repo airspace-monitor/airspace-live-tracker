@@ -31,6 +31,9 @@ dc exec -T -e COLLECTOR_KEY="$key" ingest-api python - < ../db/tests/ingest_smok
 dc build dagster-code
 dc up -d --wait dagster-code dagster-webserver dagster-daemon
 dc exec -T dagster-webserver python - < ../services/orchestrator/tests/smoke_webserver.py
+# The tests below run jobs directly; the daemon's schedules would race them (a gap check firing
+# between two inserts records a real gap), so it stops once it has started cleanly.
+dc stop dagster-daemon >/dev/null
 
 # Backup and restore drill: dump without raw chunk data, restore into a new database, compare.
 dc exec -T dagster-code dagster job execute -m orchestrator.definitions -j backup
