@@ -80,7 +80,14 @@ These live in `libs/airspace_common` and are used by every pipeline and by model
 
 **Status:** `uv run -m collector status` prints the pending file count and size and the newest batches.
 
-**Archive:** at 00:30 UTC, compact yesterday's `sent/` state-vector files into `spool/archive/states/YYYY-MM-DD.parquet` (one row per state vector, plus `batch_id`) and flight-list files into `spool/archive/flights/YYYY-MM-DD.parquet`, then delete those JSON files. At 01:00 UTC, `rclone copy` the archive to Cloudflare R2 `airspace-archive/<collector_id>/`. Local archives older than `ARCHIVE_RETENTION_DAYS` (30) are deleted, which keeps about 6 GB on the Pi's SD card ([D6](11-tasks.md#decided-while-building)). R2 keeps archives until the 8 GB cap, about 5 weeks ([D7](11-tasks.md#decided-while-building)).
+**Archive:** at 00:30 UTC, compact each finished day of `sent/` state-vector files into `spool/archive/states/YYYY-MM-DD.parquet` and flight-list files into `spool/archive/flights/YYYY-MM-DD.parquet`, then delete those JSON files (`collector/archive.py`):
+
+- A day is compacted only when none of its files are left in `pending/`, so every row has been uploaded. A file's day is the time in its UUIDv7 batch id.
+- One row per state vector (or flight) with OpenSky's original fields plus the batch envelope (`batch_id`, `collector_id`, `requested_at`, `credits_remaining`, `snapshot_time` or the flight-list window), so `collector.replay` can rebuild the exact batches. Failed requests have no rows; `ops.ingest_batches` keeps them.
+- zstd, one row group per hour, sorted by `icao24` and `snapshot_time` within the hour (a whole-day sort needs more RAM than the Pi has).
+- The JSON is deleted only after the archive is fsynced, renamed into place and its row count checked. An existing archive is never overwritten.
+
+ At 01:00 UTC, `rclone copy` the archive to Cloudflare R2 `airspace-archive/<collector_id>/`. Local archives older than `ARCHIVE_RETENTION_DAYS` (30) are deleted, which keeps about 6 GB on the Pi's SD card ([D6](11-tasks.md#decided-while-building)). R2 keeps archives until the 8 GB cap, about 5 weeks ([D7](11-tasks.md#decided-while-building)).
 
 **Spool-only mode:** `UPLOAD_ENABLED=false`, used from M0 before the server exists. When the server is live, set it to `true`; the uploader drains `pending/` (see [Catch-up](#catch-up-after-an-outage-or-the-m0-backlog)).
 

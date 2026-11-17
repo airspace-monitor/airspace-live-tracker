@@ -138,10 +138,11 @@ The collector copies its Parquet archives to R2 `airspace-archive/` daily, so ra
 | Raw size | ~2.3 GB/day uncompressed, ~0.65 GB/day compressed | 244 bytes/row with 2 indexes; 69 bytes/row compressed, 2.9× (both measured; compression on 5 days of data, 2026-11-05) |
 | Raw at 90 days | ~60–65 GB | 2 uncompressed days + 88 compressed days |
 | Flight lists | ~52k rows/day | Measured over 6 days |
+| Parquet archive | ~185 MB/day (~21 bytes/row); ~5.5 GB for the Pi's 30 days | Measured on 2026-11-12: 8.63M state vectors in 183 MB (zstd, sorted by aircraft within each hour) and 18k flight-list rows under 1 MB; 336 MB of gzipped JSON before. Compacting the day took 3 min and 363 MB of RAM on the Pi |
 | Everything else | < 15 GB | predictions with retention, flight lists, aggregates |
 | RAM | ~8 GB steady, ~10 GB during training | Postgres 4 GB, Dagster 1.5 GB, MLflow 0.5 GB, Grafana 0.3 GB, services 1.5 GB |
 
-Rows, bytes per row and compression are measured on the VM; "everything else" is still an estimate. Update the Parquet sizes after M1.19.
+Rows, bytes per row, compression and the Parquet sizes are measured; "everything else" is still an estimate.
 
 ## Cost (Level 1, per month, excl. VAT)
 

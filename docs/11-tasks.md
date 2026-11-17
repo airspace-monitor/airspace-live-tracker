@@ -71,7 +71,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M0.8 | Collector v0 (loop, spool, failures, flight lists, lock, status) | A | ✅ | `collector/` |
 | M0.9 | Run the collector on pc-daniel as a scheduled task | A | ✅ | Task `airspace-collector` (S4U, at startup) since 2026-10-29. Switched off overnight until the Pi takes over (D5) |
 | M0.13 | 48 h check: a spool file every 90 s; yesterday's flight lists arrive | A | ✅ | Checked 2026-11-17 over the last 24–48 h: 875 of 931 slots succeeded (94%; the failures are Pi Wi-Fi drops) and all 24 flight-list windows arrived |
-| M0.14 | Write measured rows/day and file sizes into [01 Sizing](01-architecture.md#sizing) | A | 🟡 | Rows/day, bytes/row and compressed size measured on the VM and written into 01. Left: Parquet sizes after M1.19 |
+| M0.14 | Write measured rows/day and file sizes into [01 Sizing](01-architecture.md#sizing) | A | ✅ | Rows/day, bytes/row, compressed size (VM) and Parquet size (Pi, 2026-11-17: ~185 MB/day, 21 B/row) written into 01 |
 | M0.15 | Request the Oracle A1 VM; order the Contabo fallback if none by the end of week 1 | A | ✅ | VM created 2026-10-30; no fallback needed. Cost Analysis shows 0 HUF for 2026-10-30 to 11-05 |
 | M0.16 | Teammate review of the docs rewrite (pushed to `main` without a PR) | B | ⬜ | Commit `5ad79a1` |
 | M0.17 | Product owner decisions (core vs stretch, hosting, dropped items, data limits) | both | ⬜ | |
@@ -101,7 +101,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M1.16 | Daily `backup` job to R2; restore drill | A | ✅ | Live 2026-11-16 (Dagster, daily 04:00 UTC). First backup 0.78 MB, since raw chunk data is left out. Restore drill from R2 into a scratch database matched the live `ops` tables. CI repeats the drill on every PR. Raw data is not in the backups: until M1.20 its only off-VM copies are the collectors' `spool/sent` |
 | M1.17 | Local dev command with the fixture database | A | ⬜ | |
 | M1.18 | OurAirports seed loader `db/seeds/ourairports.py` (`ref.airports`, `ref.runways`) | A | ✅ | 2026-11-17: 10,398 airports and 11,211 runways ([D10](#decided-while-building)); LOWW, LZIB and LHBP flagged as targets. `infra/test-db.sh` loads a fixture twice |
-| M1.19 | Spool compaction to Parquet at 00:30 UTC (uploaded files only) | A | ⬜ | D1; after M1.8 |
+| M1.19 | Spool compaction to Parquet at 00:30 UTC (uploaded files only) | A | ✅ | 2026-11-17. Dry run on the Pi with a copy of 2026-11-12: 8,633,048 state rows and 18,392 flight rows, exactly the database's counts for those batches; 3 min, 363 MB RAM. Local retention and the R2 upload are M1.20 |
 | M1.20 | R2 bucket `airspace-archive`, `rclone copy` at 01:00 UTC, local retention (`ARCHIVE_RETENTION_DAYS=30`, `RCLONE_REMOTE`) | A | ⬜ | D1, D6; needs a Cloudflare account |
 | M1.21 | Remove the leftover collector offset: forward migration dropping `ops.collectors.offset_seconds`, `OFFSET_SECONDS` in settings and `.env.example`, `--offset` in the admin CLI | A | ✅ | 2026-11-17, in two steps so each migration worked with the running code: the code stopped using it (column default 0), then the column was dropped and `ops.v_collectors` recreated. A leftover `OFFSET_SECONDS` in a `.env` is ignored |
 
