@@ -9,6 +9,7 @@ import structlog
 from airspace_common.log import configure_logging
 from airspace_common.settings import CollectorSettings
 from collector.archive import run_archive
+from collector.archive_upload import ArchiveUploader, rclone_env
 from collector.flights import run_flight_lists
 from collector.lock import AlreadyRunning, single_instance
 from collector.opensky import OpenSky, TokenProvider
@@ -18,6 +19,20 @@ from collector.status import format_summary, spool_summary
 from collector.uploader import run_uploader
 
 log = structlog.get_logger()
+
+
+def _uploader(settings: CollectorSettings) -> ArchiveUploader | None:
+    if not (settings.r2_account_id and settings.r2_access_key_id and settings.r2_secret_access_key):
+        return None
+    remote_name, _, bucket = settings.rclone_remote.partition(":")
+    env = rclone_env(
+        remote_name,
+        settings.r2_account_id,
+        settings.r2_access_key_id.get_secret_value(),
+        settings.r2_secret_access_key.get_secret_value(),
+    )
+    target = f"{remote_name}:{bucket}/{settings.collector_id}"
+    return ArchiveUploader(settings.spool_dir, target, env, settings.archive_retention_days)
 
 
 async def run(settings: CollectorSettings) -> None:
@@ -36,7 +51,7 @@ async def run(settings: CollectorSettings) -> None:
             client, settings.opensky_client_id, settings.opensky_client_secret.get_secret_value()
         )
         opensky = OpenSky(client, tokens)
-        jobs = [run_states(settings, opensky, spool), run_archive(spool)]
+        jobs = [run_states(settings, opensky, spool), run_archive(spool, _uploader(settings))]
         if settings.flight_lists_enabled:
             jobs.append(run_flight_lists(opensky, spool, settings.collector_id))
         if settings.upload_enabled:

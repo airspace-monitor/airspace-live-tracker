@@ -16,6 +16,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable --package airspace-collector
 
 FROM python:3.12-slim-bookworm
+# rclone uploads the Parquet archive to R2 (M1.20).
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates rclone \
+ && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/.venv /app/.venv
 ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 SPOOL_DIR=/data/spool
 WORKDIR /data

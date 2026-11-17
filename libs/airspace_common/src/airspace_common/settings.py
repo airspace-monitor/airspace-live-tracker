@@ -21,6 +21,13 @@ class CollectorSettings(BaseSettings):
     spool_dir: Path = Path("spool")
     upload_enabled: bool = True
     flight_lists_enabled: bool = True
+    # Archive upload and retention (M1.20). Without the R2 credentials nothing is uploaded and no
+    # local archive is deleted.
+    archive_retention_days: int = 30
+    rclone_remote: str = "r2:airspace-archive"
+    r2_account_id: str | None = None
+    r2_access_key_id: SecretStr | None = None
+    r2_secret_access_key: SecretStr | None = None
 
 
 class IngestSettings(BaseSettings):
