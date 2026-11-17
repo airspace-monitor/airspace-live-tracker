@@ -1,0 +1,7 @@
+"id","ident","type","name","latitude_deg","longitude_deg","elevation_ft","continent","iso_country","iso_region","municipality","scheduled_service","icao_code","iata_code","gps_code","local_code","home_link","wikipedia_link","keywords"
+1,"LOWW","large_airport","Vienna International Airport",48.110298,16.5697,600,"EU","AT","AT-9","Vienna","yes","LOWW","VIE","LOWW","","","",""
+2,"LZIB","large_airport","M. R. Štefánik Airport",48.17020034790039,17.21269989013672,436,"EU","SK","SK-BL","Bratislava","yes","LZIB","BTS","LZIB","","","",""
+3,"LHBP","large_airport","Budapest Liszt Ferenc International Airport",47.42976,19.261093,495,"EU","HU","HU-PE","Budapest","yes","LHBP","BUD","LHBP","","","",""
+4,"LOAN","small_airport","Wiener Neustadt Ost",47.843299,16.260099,896,"EU","AT","AT-3","Wiener Neustadt","no","LOAN","","LOAN","","","",""
+5,"XX01","small_airport","No ICAO code strip",47.0,16.0,500,"EU","AT","AT-3","","no","","","XX01","","","",""
+6,"LOXX","small_airport","No elevation field",47.5,16.5,,"EU","AT","AT-3","","no","LOXX","","LOXX","","","",""

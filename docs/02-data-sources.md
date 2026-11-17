@@ -76,7 +76,7 @@ Facts below were checked against the providers' documentation on 2026-10-29. If 
 | Countries | Natural Earth admin-0, 1:50m | Public domain | `over_country` for the chat; place names in briefings | monthly |
 | H3 grid | `h3` Python library | Apache 2.0 | Cell ids, boundaries | n/a |
 
-Airports and runways are loaded in M1 by the seed loader `db/seeds/ourairports.py` (downloads both CSVs, upserts on the primary key, safe to re-run), because go-around detection in M2 needs the target airports' elevations. From M3, `ref_refresh` keeps them current. The other datasets are first loaded by `ref_refresh` in M3.
+Airports and runways are loaded in M1 by the seed loader `db/seeds/ourairports.py` (downloads both CSVs, upserts on the primary key, safe to re-run; skipped rows: [D10](11-tasks.md#decided-while-building)). On the VM, from `infra/`: `docker compose run --rm -v ../db:/db:ro dagster-code python /db/seeds/ourairports.py`, because go-around detection in M2 needs the target airports' elevations. From M3, `ref_refresh` keeps them current. The other datasets are first loaded by `ref_refresh` in M3.
 
 ## Target airports
 
