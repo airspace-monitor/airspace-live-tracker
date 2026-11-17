@@ -19,7 +19,8 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 | Server | Oracle A1 VM `airspace-vm` (Frankfurt, 2 OCPU, 12 GB, 200 GB) with Docker and Tailscale, created 2026-10-30. No inbound ports open to the internet. Runs the database and ingest-api from a git checkout of `main`, deployed with `infra/deploy.sh` |
 | Pipeline | pc-daniel uploads to ingest-api on the VM over Tailscale; batches land in TimescaleDB. On 2026-11-03: 2,780 snapshots, 27.5M state vectors, 314k flight-list rows, nothing rejected; database 6.5 GB, uncompressed |
 | Orchestrator | Dagster on the VM (tailnet `:3000`): `backup` daily 04:00 UTC to R2, `collector_gap_check` every 5 min |
-| Not started | stream worker, Grafana, web app, ML, LLM |
+| Dashboards | Grafana "Airspace ops" on the tailnet (`airspace-vm:3001`) |
+| Not started | stream worker, web app, ML, LLM |
 | public-api | `services/api` serves all of M2.1 as `app_reader`: `/live/snapshot`, `/stats`, `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/live/stream` (SSE), `/health` |
 
 ## Open questions found while building
@@ -58,6 +59,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | D9 | The collector exits after 10 consecutive slots with no response from OpenSky, so Docker restarts it | A Pi reboot on 2026-11-13 left the container with an empty `resolv.conf`; it collected nothing for 2.7 days without crashing, and a restart fixed it (decided 2026-11-16) |
 | D10 | The OurAirports seed loads airports with an ICAO code and an elevation (10,398 of 86,371), and open runways with an `le_ident` (11,211); a repeated `(airport, le_ident)` keeps the longest runway. Resolves Q4 | 335 ICAO airports have no elevation and a guessed 0 would give wrong heights; 16 runways have no identifier and 2 identifiers repeat. None of them is at a target airport (decided 2026-11-17) |
 | D11 | `agg_backfill_refresh` scans batches received since the end of its last successful run (first run: 65 min; at most 7 days), not a fixed 65 min. Resolves Q7 | A single failed hourly run would otherwise leave late data unmaterialised for good (decided 2026-11-17) |
+| D12 | Grafana is reachable on the tailnet only (`airspace-vm:3001`, admin login) until the public launch; externally shared dashboards wait for the domain and Cloudflare (M1.2) | Same reason as D3: nothing is public yet (decided 2026-11-17) |
 
 ## M0 · Foundations (weeks 0–1)
 
@@ -95,7 +97,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M1.10 | `agg.traffic_h3_15m`, `agg.coverage_15m`, `agg_backfill_refresh` | A | ✅ | 2026-11-17. The aggregate is created as `jobs` (which must own it to refresh it). History since 2026-10-29 was materialised once by hand; the policy keeps the last 2 h current and the hourly job handles late batches ([D11](#decided-while-building)) |
 | M1.11 | Compression-policy migration, merged after the drain | A | ✅ | Applied on the VM 2026-11-05 (job 1005, every 12 h). First run compressed 5 days from 6.0 GB to 2.1 GB (2.9×, 69 B/row), lower than the ~10× estimated (Q16) |
 | M1.12 | Dagster webserver, daemon and code location (tailnet only) | A | ✅ | 2026-11-08: one image (`services/orchestrator`) runs all three; storage in the `dagster` database; webserver on `127.0.0.1:3000`, shared to the tailnet with `tailscale serve`. CI's migration test also checks that the webserver loads the `airspace` code location. No jobs yet; `backup` (M1.16) is the first |
-| M1.13 | Grafana provisioning; ops dashboards (rows/min, slot coverage, gaps), externally shared | A | ⬜ | |
+| M1.13 | Grafana provisioning; ops dashboards (rows/min, slot coverage, gaps), externally shared | A | ✅ | 2026-11-17: Grafana 12.4.3 with the datasource (`grafana_reader`) and the "Airspace ops" dashboard provisioned from `infra/grafana`; CI runs every panel query as `grafana_reader`. Tailnet only ([D12](#decided-while-building)); external sharing comes with M1.2 |
 | M1.14 | `ci.yml`: ruff, mypy, pytest, ESLint, tsc, Vitest, migration test, multi-arch build | A | ✅ | Green since 2026-11-08 in the `airspace-monitor` organization (the repo moved there because Actions would not start on the previous owner's account). Python checks, `infra/test-db.sh`, amd64 + arm64 builds of ingest and collector. JS checks join with `web/` |
 | M1.15 | `deploy.yml` and `infra/deploy.sh` (Tailscale, pull → migrate → up), GHCR | A | ✅ | Live since 2026-11-08: every merge to `main` runs CI, then deploys to the VM over Tailscale (first automatic deploy: PR #12). Images build on the VM; GHCR deferred |
 | M1.16 | Daily `backup` job to R2; restore drill | A | ✅ | Live 2026-11-16 (Dagster, daily 04:00 UTC). First backup 0.78 MB, since raw chunk data is left out. Restore drill from R2 into a scratch database matched the live `ops` tables. CI repeats the drill on every PR. Raw data is not in the backups: until M1.20 its only off-VM copies are the collectors' `spool/sent` |

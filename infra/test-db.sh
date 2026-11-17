@@ -4,11 +4,12 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 env_file=$(mktemp)
-for var in POSTGRES AIRSPACE_OWNER INGEST_WRITER STREAM_WORKER JOBS APP_READER LLM_READONLY GRAFANA_READER DAGSTER_DB MLFLOW_DB BACKUP; do
+for var in POSTGRES AIRSPACE_OWNER INGEST_WRITER STREAM_WORKER JOBS APP_READER LLM_READONLY GRAFANA_READER DAGSTER_DB MLFLOW_DB BACKUP GRAFANA_ADMIN; do
   echo "${var}_PASSWORD=test" >> "$env_file"
 done
 echo "INGEST_HOST_PORT=18000" >> "$env_file"  # the real ingest-api may be using 8000
 echo "DAGSTER_HOST_PORT=13000" >> "$env_file"
+echo "GRAFANA_HOST_PORT=13001" >> "$env_file"
 # The backup job writes to a local directory instead of R2.
 { echo "R2_RCLONE_TYPE=local"; echo "BACKUP_BUCKET=/tmp/r2/airspace-backup"; echo "ARCHIVE_BUCKET=/tmp/r2/airspace-archive"; } >> "$env_file"
 dc() { docker compose -p airspace-test --env-file "$env_file" -f compose.yml "$@"; }
@@ -143,3 +144,14 @@ SELECT count(*) FROM agg.coverage_15m;
 RESET ROLE;
 SQL
 echo "aggregates test passed"
+
+# Grafana (M1.13): every panel query runs as grafana_reader, the provisioned datasource connects
+# and the ops dashboard is loaded.
+python3 ../infra/grafana/check_queries.py ../infra/grafana/dashboards/*.json \
+  | dc exec -T db psql -U grafana_reader -d airspace -v ON_ERROR_STOP=1 -q >/dev/null
+dc up -d --wait grafana
+dc exec -T grafana wget -q -O - http://admin:test@127.0.0.1:3000/api/datasources/uid/airspace/health \
+  | grep -q '"status":"OK"' || { echo "grafana datasource is not healthy"; exit 1; }
+dc exec -T grafana wget -q -O - "http://admin:test@127.0.0.1:3000/api/search?query=Airspace%20ops" \
+  | grep -q '"uid":"airspace-ops"' || { echo "ops dashboard not provisioned"; exit 1; }
+echo "grafana test passed"

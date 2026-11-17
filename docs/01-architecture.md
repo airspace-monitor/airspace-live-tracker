@@ -88,7 +88,7 @@ VM
     ├── dagster-webserver   127.0.0.1:3000 → tailscale serve
     ├── dagster-daemon, dagster-code
     ├── mlflow              127.0.0.1:5000 → tailscale serve
-    └── grafana             anonymous access off; externally shared dashboards only
+    └── grafana             127.0.0.1:3001 → tailscale serve while private (D12); anonymous access off
 ```
 
 ## Deployment
