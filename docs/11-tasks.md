@@ -31,7 +31,6 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 | Q3 | `flights_sessionizer` reads the last 30 min, so a backlog drained after an outage is never turned into flights without a manual `flights_rebuild` | With one home collector, outages will happen; those arrivals are lost as ETA labels |
 | Q5 | CARTO basemap: raster tiles need an API key. Add the key, a tile budget and the Pages preview origins to [08](08-frontend.md) | Needed for M2 |
 | Q6 | A stream-worker outage over 10 min loses squawk and go-around events until someone runs `events_rebuild` | Add bounded catch-up on startup, or schedule the rebuild |
-| Q7 | `agg_backfill_refresh` only looks back 65 min | One failed run leaves late data unmaterialised for good |
 | Q8 | CORS preview origins need a regex or allow-list; `Access-Control-Allow-Origin` has no wildcard subdomains | [05](05-api-contract.md) reads as a literal `*.pages.dev` |
 | Q9 | What happens to `ml.anomalies` when late data changes a bucket: re-score or mark stale | The heatmap can disagree with the aggregate |
 | Q10 | A negative-result path for ETA: report MAE vs B0 and B1 and keep the model card even if B1 is not beaten | B1 is a strong baseline and the success criterion may not be met |
@@ -58,6 +57,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | D8 | `pg_dump` runs from the dagster-code container as a read-only `backup` role (`pg_read_all_data`), not inside the database container | Running it in the database container would need the Docker socket in Dagster, which is root on the VM (decided 2026-11-08) |
 | D9 | The collector exits after 10 consecutive slots with no response from OpenSky, so Docker restarts it | A Pi reboot on 2026-11-13 left the container with an empty `resolv.conf`; it collected nothing for 2.7 days without crashing, and a restart fixed it (decided 2026-11-16) |
 | D10 | The OurAirports seed loads airports with an ICAO code and an elevation (10,398 of 86,371), and open runways with an `le_ident` (11,211); a repeated `(airport, le_ident)` keeps the longest runway. Resolves Q4 | 335 ICAO airports have no elevation and a guessed 0 would give wrong heights; 16 runways have no identifier and 2 identifiers repeat. None of them is at a target airport (decided 2026-11-17) |
+| D11 | `agg_backfill_refresh` scans batches received since the end of its last successful run (first run: 65 min; at most 7 days), not a fixed 65 min. Resolves Q7 | A single failed hourly run would otherwise leave late data unmaterialised for good (decided 2026-11-17) |
 
 ## M0 · Foundations (weeks 0–1)
 
@@ -92,7 +92,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M1.7 | Admin CLI `add-collector` (argon2id key hash) | A | ✅ | Run through the `ingest-admin` compose service |
 | M1.8 | Collector uploader (oldest-first, back-off, 401/413/422 handling); then `UPLOAD_ENABLED=true` | A | ✅ | Enabled on pc-daniel 2026-10-30 |
 | M1.9 | Drain the M0 backlog | A | ✅ | Drained 2026-10-30: 736 snapshots, 8.75M state vectors, 119,723 flights, nothing rejected. About 230 B/row before compression, so M1.11 matters next |
-| M1.10 | `agg.traffic_h3_15m`, `agg.coverage_15m`, `agg_backfill_refresh` | A | ⬜ | |
+| M1.10 | `agg.traffic_h3_15m`, `agg.coverage_15m`, `agg_backfill_refresh` | A | ✅ | 2026-11-17. The aggregate is created as `jobs` (which must own it to refresh it). History since 2026-10-29 was materialised once by hand; the policy keeps the last 2 h current and the hourly job handles late batches ([D11](#decided-while-building)) |
 | M1.11 | Compression-policy migration, merged after the drain | A | ✅ | Applied on the VM 2026-11-05 (job 1005, every 12 h). First run compressed 5 days from 6.0 GB to 2.1 GB (2.9×, 69 B/row), lower than the ~10× estimated (Q16) |
 | M1.12 | Dagster webserver, daemon and code location (tailnet only) | A | ✅ | 2026-11-08: one image (`services/orchestrator`) runs all three; storage in the `dagster` database; webserver on `127.0.0.1:3000`, shared to the tailnet with `tailscale serve`. CI's migration test also checks that the webserver loads the `airspace` code location. No jobs yet; `backup` (M1.16) is the first |
 | M1.13 | Grafana provisioning; ops dashboards (rows/min, slot coverage, gaps), externally shared | A | ⬜ | |
