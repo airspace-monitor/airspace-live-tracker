@@ -14,10 +14,9 @@ def at(i: int) -> datetime:
 
 
 def test_requests_map_to_the_slot_they_started_in() -> None:
-    assert slot_of(T0 + timedelta(seconds=43), offset_s=0) == T0
-    assert slot_of(T0 + timedelta(seconds=89.9), offset_s=0) == T0
-    assert slot_of(T0 + timedelta(seconds=90), offset_s=0) == at(1)
-    assert slot_of(T0 + timedelta(seconds=50), offset_s=45) == T0 + timedelta(seconds=45)
+    assert slot_of(T0 + timedelta(seconds=43)) == T0
+    assert slot_of(T0 + timedelta(seconds=89.9)) == T0
+    assert slot_of(T0 + timedelta(seconds=90)) == at(1)
 
 
 def test_three_missed_slots_are_not_a_gap() -> None:

@@ -12,13 +12,12 @@ from argon2 import PasswordHasher
 from airspace_common.settings import AdminSettings
 
 
-def add_collector(conninfo: str, collector_id: str, owner: str, offset_seconds: int) -> str:
+def add_collector(conninfo: str, collector_id: str, owner: str) -> str:
     key = secrets.token_urlsafe(32)
     with psycopg.connect(conninfo) as conn:
         conn.execute(
-            "INSERT INTO ops.collectors (collector_id, owner, offset_seconds, api_key_hash)"
-            " VALUES (%s, %s, %s, %s)",
-            (collector_id, owner, offset_seconds, PasswordHasher().hash(key)),
+            "INSERT INTO ops.collectors (collector_id, owner, api_key_hash) VALUES (%s, %s, %s)",
+            (collector_id, owner, PasswordHasher().hash(key)),
         )
     return key
 
@@ -29,10 +28,9 @@ def main() -> None:
     add = commands.add_parser("add-collector")
     add.add_argument("--id", required=True)
     add.add_argument("--owner", required=True)
-    add.add_argument("--offset", type=int, default=0, choices=[0, 45])
     args = parser.parse_args()
     conninfo = AdminSettings().admin_database_url.get_secret_value()
-    print(add_collector(conninfo, args.id, args.owner, args.offset))
+    print(add_collector(conninfo, args.id, args.owner))
 
 
 if __name__ == "__main__":

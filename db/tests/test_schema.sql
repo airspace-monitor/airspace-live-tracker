@@ -20,7 +20,7 @@ BEGIN
   END IF;
 END $$;
 
-INSERT INTO ops.collectors (collector_id, owner, offset_seconds, api_key_hash) VALUES ('test-01', 'test', 0, 'x');
+INSERT INTO ops.collectors (collector_id, owner, api_key_hash) VALUES ('test-01', 'test', 'x');
 
 -- ingest_writer: stores a batch; re-uploading it changes nothing
 SET ROLE ingest_writer;

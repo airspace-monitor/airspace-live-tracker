@@ -57,7 +57,6 @@ def _settings(tmp_path: Path) -> CollectorSettings:
         collector_id="pi-daniel",
         opensky_client_id="id",
         opensky_client_secret="secret",
-        offset_seconds=0,
         cadence_seconds=1,
         spool_dir=tmp_path,
     )

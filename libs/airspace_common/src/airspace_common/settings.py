@@ -3,7 +3,7 @@ directory. Every variable is documented in `.env.example`."""
 
 from pathlib import Path
 
-from pydantic import SecretStr, field_validator
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,17 +18,9 @@ class CollectorSettings(BaseSettings):
     ingest_url: str | None = None
     ingest_api_key: SecretStr | None = None
     cadence_seconds: int = 90
-    offset_seconds: int
     spool_dir: Path = Path("spool")
     upload_enabled: bool = True
     flight_lists_enabled: bool = True
-
-    @field_validator("offset_seconds")
-    @classmethod
-    def _offset_on_the_shared_grid(cls, value: int) -> int:
-        if value not in (0, 45):
-            raise ValueError("OFFSET_SECONDS must be 0 (pc-daniel) or 45 (pc-alek)")
-        return value
 
 
 class IngestSettings(BaseSettings):
