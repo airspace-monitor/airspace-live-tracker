@@ -20,13 +20,13 @@ import gzip
 import json
 import os
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 import structlog
 
@@ -119,70 +119,86 @@ def _flight_rows(env: dict[str, Any]) -> list[dict[str, Any]]:
     return [batch | {n: f.get(n) for n, _ in FLIGHT_FIELDS} for f in body]
 
 
-def _write_atomic(path: Path, schema: pa.Schema, row_groups: Iterable[list[dict[str, Any]]]) -> int:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    n = 0
-    with pq.ParquetWriter(tmp, schema, compression="zstd") as writer:
-        for rows in row_groups:
-            if rows:
-                writer.write_table(pa.Table.from_pylist(rows, schema=schema))
-                n += len(rows)
-    with open(tmp, "r+b") as f:  # writable, so fsync also works on Windows
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
-    return n
+class _DayWriter:
+    """One day's archive of one kind, written hour by hour to a temporary file. An archive that
+    already exists is left untouched; its batch ids are read back for the clean-up check."""
 
+    def __init__(self, path: Path, schema: pa.Schema, sort_keys: list[tuple[str, str]]) -> None:
+        self.path, self.schema, self.sort_keys = path, schema, sort_keys
+        self.tmp = path.with_name(path.name + ".tmp")
+        self.existing = path.exists()
+        self.writer: pq.ParquetWriter | None = None
+        self.hour: list[pa.Table] = []
+        self.batch_ids: set[str] = set()
+        self.rows = 0
 
-def _archived_batch_ids(path: Path) -> set[str]:
-    return set(pq.read_table(path, columns=["batch_id"]).column("batch_id").to_pylist())
+    def add(self, batch_id: str, rows: list[dict[str, Any]]) -> None:
+        if rows and not self.existing:
+            self.hour.append(pa.Table.from_pylist(rows, schema=self.schema))
+            self.batch_ids.add(batch_id)
 
+    def end_hour(self) -> None:
+        if not self.hour:
+            return
+        table = pa.concat_tables(self.hour)
+        self.hour = []
+        if self.sort_keys:
+            table = table.sort_by(self.sort_keys)
+        if self.writer is None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.writer = pq.ParquetWriter(self.tmp, self.schema, compression="zstd")
+        self.writer.write_table(table)
+        self.rows += len(table)
 
-def _hourly_rows(
-    files: list[Path], to_rows: Callable[[dict[str, Any]], list[dict[str, Any]]], sort: bool
-) -> Iterator[list[dict[str, Any]]]:
-    """One row group per hour of batch time, optionally sorted by aircraft then snapshot."""
-    by_hour: dict[int, list[Path]] = defaultdict(list)
-    for path in files:
-        by_hour[batch_time(_batch_id(path)).hour].append(path)
-    for hour in sorted(by_hour):
-        rows = [r for p in by_hour[hour] for r in to_rows(_read(p))]
-        if sort:
-            rows.sort(key=lambda r: (r["icao24"] or "", r["snapshot_time"]))
-        yield rows
+    def finish(self) -> int | None:
+        """Renames the archive into place after checking its row count; None if nothing new."""
+        if self.writer is None:
+            return None
+        self.writer.close()
+        with open(self.tmp, "r+b") as f:  # writable, so fsync also works on Windows
+            os.fsync(f.fileno())
+        if pq.read_metadata(self.tmp).num_rows != self.rows:
+            raise RuntimeError(f"{self.tmp}: row count differs from the {self.rows} written")
+        os.replace(self.tmp, self.path)
+        return self.rows
+
+    def archived_ids(self) -> set[str]:
+        if not self.existing:
+            return self.batch_ids
+        ids = pc.unique(pq.read_table(self.path, columns=["batch_id"]).column("batch_id"))
+        return set(ids.to_pylist())
 
 
 def compact_day(spool: Spool, day: date, files: list[Path]) -> None:
-    states_path = spool.root / "archive" / "states" / f"{day.isoformat()}.parquet"
-    flights_path = spool.root / "archive" / "flights" / f"{day.isoformat()}.parquet"
-    by_kind: dict[str, list[Path]] = defaultdict(list)
+    """Reads each file once, writes both archives, then deletes the JSON they cover."""
+    archive = spool.root / "archive"
+    states = _DayWriter(
+        archive / "states" / f"{day.isoformat()}.parquet",
+        STATES_SCHEMA,
+        [("icao24", "ascending"), ("snapshot_time", "ascending")],
+    )
+    flights = _DayWriter(archive / "flights" / f"{day.isoformat()}.parquet", FLIGHTS_SCHEMA, [])
+    by_hour: dict[int, list[Path]] = defaultdict(list)
     for path in files:
-        by_kind[_read(path)["query"]["kind"]].append(path)
+        by_hour[batch_time(_batch_id(path)).hour].append(path)
 
-    written = {}
-    for path_out, kind, schema, to_rows in (
-        (states_path, "states_global", STATES_SCHEMA, _state_rows),
-        (flights_path, "flights_all", FLIGHTS_SCHEMA, _flight_rows),
-    ):
-        kind_files = by_kind.get(kind, [])
-        if path_out.exists() or not kind_files:
-            continue
-        sort = kind == "states_global"
-        n = _write_atomic(path_out, schema, _hourly_rows(kind_files, to_rows, sort))
-        if pq.read_metadata(path_out).num_rows != n:
-            raise RuntimeError(f"{path_out}: wrote {n} rows but the file holds a different count")
-        written[path_out.name] = n
+    seen: list[tuple[Path, str, bool]] = []  # path, batch id, has rows
+    for hour in sorted(by_hour):
+        for path in by_hour[hour]:
+            env = _read(path)
+            state_rows, flight_rows = _state_rows(env), _flight_rows(env)
+            states.add(env["batch_id"], state_rows)
+            flights.add(env["batch_id"], flight_rows)
+            seen.append((path, env["batch_id"], bool(state_rows or flight_rows)))
+        states.end_hour()
+        flights.end_hour()
+    written = {"states": states.finish(), "flights": flights.finish()}
 
     # Delete only JSON whose rows are in an archive (files without rows can always go).
-    archived: set[str] = set()
-    for path_out in (states_path, flights_path):
-        if path_out.exists():
-            archived |= _archived_batch_ids(path_out)
+    archived = states.archived_ids() | flights.archived_ids()
     deleted = kept = 0
-    for path in files:
-        env = _read(path)
-        has_rows = bool(_state_rows(env) or _flight_rows(env))
-        if not has_rows or env["batch_id"] in archived:
+    for path, batch_id, has_rows in seen:
+        if not has_rows or batch_id in archived:
             path.unlink()
             deleted += 1
         else:
