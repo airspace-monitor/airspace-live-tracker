@@ -12,7 +12,8 @@ COPY libs libs
 COPY collector collector
 # The cache mount keeps downloaded packages between builds, so a build that failed halfway on the
 # Pi's Wi-Fi does not download everything again.
-RUN --mount=type=cache,target=/root/.cache/uv \n    uv sync --frozen --no-dev --no-editable --package airspace-collector
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-editable --package airspace-collector
 
 FROM python:3.12-slim-bookworm
 COPY --from=build /app/.venv /app/.venv
