@@ -5,7 +5,7 @@ The working task list for the whole application, by milestone ([10](10-roadmap.m
 Status: ✅ done · 🟡 in progress · ⬜ to do · ⛔ blocked (the note says on what).
 Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#work-split)). Track A is owned by Dániel, Track B by Alek.
 
-*Last updated: 2026-11-17.*
+*Last updated: 2026-11-18.*
 
 ## What exists now
 
@@ -104,7 +104,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M1.17 | Local dev command with the fixture database | A | ⬜ | |
 | M1.18 | OurAirports seed loader `db/seeds/ourairports.py` (`ref.airports`, `ref.runways`) | A | ✅ | 2026-11-17: 10,398 airports and 11,211 runways ([D10](#decided-while-building)); LOWW, LZIB and LHBP flagged as targets. `infra/test-db.sh` loads a fixture twice |
 | M1.19 | Spool compaction to Parquet at 00:30 UTC (uploaded files only) | A | ✅ | 2026-11-17. Dry run on the Pi with a copy of 2026-11-12: 8,633,048 state rows and 18,392 flight rows, exactly the database's counts for those batches; 3 min, 363 MB RAM. Local retention and the R2 upload are M1.20 |
-| M1.20 | R2 bucket `airspace-archive`, `rclone copy` at 01:00 UTC, local retention (`ARCHIVE_RETENTION_DAYS=30`, `RCLONE_REMOTE`) | A | ⬜ | D1, D6; needs a Cloudflare account |
+| M1.20 | R2 bucket `airspace-archive`, `rclone copy` at 01:00 UTC, local retention (`ARCHIVE_RETENTION_DAYS=30`, `RCLONE_REMOTE`) | A | ✅ | Live 2026-11-18: the upload runs right after the 00:30 compaction with the Pi's own token (only `airspace-archive`). First upload: 17 files, 1.06 GB in 30 s, now that the Pi is on Ethernet. Local archives older than 30 days are deleted only once R2 holds them at the same size |
 | M1.21 | Remove the leftover collector offset: forward migration dropping `ops.collectors.offset_seconds`, `OFFSET_SECONDS` in settings and `.env.example`, `--offset` in the admin CLI | A | ✅ | 2026-11-17, in two steps so each migration worked with the running code: the code stopped using it (column default 0), then the column was dropped and `ops.v_collectors` recreated. A leftover `OFFSET_SECONDS` in a `.env` is ignored |
 
 ## M2 · Live map (weeks 2–4)
