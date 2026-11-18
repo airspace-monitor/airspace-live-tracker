@@ -1,0 +1,19 @@
+# Provisioned datasource (docs/09-conventions.md). grafana_reader sees views without key hashes
+# and has a 10 s statement timeout (docs/03-data-model.md#roles).
+apiVersion: 1
+datasources:
+  - name: airspace
+    uid: airspace
+    type: grafana-postgresql-datasource
+    url: db:5432
+    user: grafana_reader
+    isDefault: true
+    editable: false
+    jsonData:
+      database: airspace
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: true
+      maxOpenConns: 5
+    secureJsonData:
+      password: ${GRAFANA_READER_PASSWORD}
