@@ -35,27 +35,6 @@ dc exec -T dagster-webserver python - < ../services/orchestrator/tests/smoke_web
 # between two inserts records a real gap), so it stops once it has started cleanly.
 dc stop dagster-daemon >/dev/null
 
-# Backup and restore drill: dump without raw chunk data, restore into a new database, compare.
-dc exec -T dagster-code dagster job execute -m orchestrator.definitions -j backup
-dc exec -T dagster-code sh -c 'cat /tmp/r2/airspace-backup/*/airspace.dump'   | dc exec -T db sh -c 'cat > /tmp/airspace.dump'
-dc exec -T db sh -c 'psql -U postgres -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE restore_drill"   && psql -U postgres -d restore_drill -q -v ON_ERROR_STOP=1        -c "CREATE EXTENSION IF NOT EXISTS timescaledb" -c "SELECT timescaledb_pre_restore()" >/dev/null   && pg_restore -U postgres -d restore_drill --no-owner /tmp/airspace.dump   && psql -U postgres -d restore_drill -q -c "SELECT timescaledb_post_restore()" >/dev/null'
-dc exec -T db psql -U postgres -d restore_drill -v ON_ERROR_STOP=1 -q <<'SQL'
-DO $$
-BEGIN
-  IF (SELECT count(*) FROM raw.state_vectors) <> 0 THEN
-    RAISE EXCEPTION 'raw chunk data was not excluded from the backup';
-  END IF;
-  IF (SELECT count(*) FROM ops.collectors) < 2 OR (SELECT count(*) FROM ops.ingest_batches) = 0 THEN
-    RAISE EXCEPTION 'restored backup lost ops data';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM timescaledb_information.hypertables
-                 WHERE hypertable_schema = 'raw' AND hypertable_name = 'state_vectors') THEN
-    RAISE EXCEPTION 'raw.state_vectors is not a hypertable after restore';
-  END IF;
-END $$;
-SQL
-echo "backup and restore drill passed"
-
 # collector_gap_check: test-01 succeeds at 12:00 and 12:01:30, misses 12:03:00-12:07:30 (4 slots)
 # and succeeds again at 12:09:00. Two runs of the same window give one event and two job_runs rows.
 dc exec -T db psql -U postgres -d airspace -q -v ON_ERROR_STOP=1 <<'SQL'
@@ -147,6 +126,42 @@ SELECT count(*) FROM agg.coverage_15m;
 RESET ROLE;
 SQL
 echo "aggregates test passed"
+
+# Backup and restore drill (after the aggregates test, so agg.traffic_h3_15m has data): dump without
+# raw chunk data or continuous-aggregate data (D13), restore into a new database, compare, then
+# check that the aggregate is rebuilt once raw data is back.
+dc exec -T dagster-code dagster job execute -m orchestrator.definitions -j backup
+dc exec -T dagster-code sh -c 'cat /tmp/r2/airspace-backup/*/airspace.dump'   | dc exec -T db sh -c 'cat > /tmp/airspace.dump'
+dc exec -T db sh -c 'psql -U postgres -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE restore_drill"   && psql -U postgres -d restore_drill -q -v ON_ERROR_STOP=1        -c "CREATE EXTENSION IF NOT EXISTS timescaledb" -c "SELECT timescaledb_pre_restore()" >/dev/null   && pg_restore -U postgres -d restore_drill --no-owner /tmp/airspace.dump   && psql -U postgres -d restore_drill -q -c "SELECT timescaledb_post_restore()" >/dev/null'
+dc exec -T db psql -U postgres -d restore_drill -v ON_ERROR_STOP=1 -q <<'SQL'
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM raw.state_vectors) <> 0 THEN
+    RAISE EXCEPTION 'raw chunk data was not excluded from the backup';
+  END IF;
+  IF (SELECT count(*) FROM agg.traffic_h3_15m) <> 0 THEN
+    RAISE EXCEPTION 'continuous-aggregate data was not excluded from the backup';
+  END IF;
+  IF (SELECT count(*) FROM ops.collectors) < 2 OR (SELECT count(*) FROM ops.ingest_batches) = 0 THEN
+    RAISE EXCEPTION 'restored backup lost ops data';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM timescaledb_information.hypertables
+                 WHERE hypertable_schema = 'raw' AND hypertable_name = 'state_vectors') THEN
+    RAISE EXCEPTION 'raw.state_vectors is not a hypertable after restore';
+  END IF;
+END $$;
+-- What a replay from the archives does: raw rows come back, then the aggregate is refreshed.
+INSERT INTO raw.state_vectors (snapshot_time, icao24, batch_id, h3_r4, on_ground, baro_altitude_m, vertical_rate_ms)
+VALUES ('2026-10-29 10:00Z', 'a00001', '00000000-0000-7000-8000-0000000000b1', 595183493020581887, false, 10000, -5);
+CALL refresh_continuous_aggregate('agg.traffic_h3_15m', '2026-10-29', '2026-10-30');
+DO $$
+BEGIN
+  IF (SELECT n_obs FROM agg.traffic_h3_15m WHERE bucket = '2026-10-29 10:00Z') IS DISTINCT FROM 1 THEN
+    RAISE EXCEPTION 'agg.traffic_h3_15m was not rebuilt from restored raw data';
+  END IF;
+END $$;
+SQL
+echo "backup and restore drill passed"
 
 # Grafana (M1.13): every panel query runs as grafana_reader, the provisioned datasource connects
 # and the ops dashboard is loaded.
