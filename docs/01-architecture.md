@@ -124,7 +124,7 @@ VM
 ## Backups
 
 Daily `backup` Dagster job ([04](04-pipelines.md#backup)) to Cloudflare R2 `airspace-backup/`, 14 days kept, as the read-only `backup` role ([D8](11-tasks.md#decided-while-building)):
-- `airspace` without the raw hypertables' chunk data (raw data is restored from the archives),
+- `airspace` without the raw hypertables' chunk data (raw data is restored from the archives) or the continuous aggregates' data (recomputed from raw, [D13](11-tasks.md#decided-while-building)),
 - `dagster` and `mlflow`,
 - the `mlflow-artifacts` volume.
 

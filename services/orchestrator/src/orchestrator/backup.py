@@ -1,7 +1,8 @@
 """The daily `backup` job (docs/04-pipelines.md#backup).
 
-1. `pg_dump -Fc` of `airspace` (without the data of the `raw` hypertables' chunks, which come back
-   from the collector's archives), `dagster` and `mlflow`, as the read-only `backup` role.
+1. `pg_dump -Fc` of `airspace` (without the chunk data of the `raw` hypertables, which comes back
+   from the collector's archives, or of the continuous aggregates, which are recomputed from raw;
+   D13), `dagster` and `mlflow`, as the read-only `backup` role.
 2. `rclone copy` to `<remote>:airspace-backup/YYYY-MM-DD/`; keep the newest 14 days.
 3. Keep R2 under the free tier (D7): when backups and archives together pass the cap, delete the
    oldest files in `airspace-archive`. Backups are never deleted for the cap.
@@ -34,17 +35,21 @@ from airspace_common.settings import BackupSettings
 
 DATABASES = ("airspace", "dagster", "mlflow")
 
-# pg_dump patterns matching every chunk of a `raw` hypertable and the tables holding its
-# compressed data. All are named after the hypertable's chunk prefix (`_hyper_1_2_chunk`,
-# `_hyper_1_2_chunk_compressed` since TimescaleDB 2.30, which no longer lists those in its
-# catalog). Unquoted, so `*` is a wildcard. The restore drill in infra/test-db.sh fails if an
-# image upgrade breaks this.
-RAW_CHUNK_PATTERNS_SQL = """
+# pg_dump patterns matching every chunk of a `raw` hypertable or of a continuous aggregate's
+# materialisation hypertable (D13), and the tables holding their compressed data. All are named
+# after the hypertable's chunk prefix (`_hyper_1_2_chunk`, `_hyper_1_2_chunk_compressed` since
+# TimescaleDB 2.30, which no longer lists those in its catalog). Unquoted, so `*` is a wildcard.
+# The restore drill in infra/test-db.sh fails if an image upgrade breaks this.
+EXCLUDED_DATA_PATTERNS_SQL = """
+WITH derived_or_raw AS (
+  SELECT id, compressed_hypertable_id FROM _timescaledb_catalog.hypertable
+  WHERE schema_name = 'raw'
+     OR id IN (SELECT mat_hypertable_id FROM _timescaledb_catalog.continuous_agg)
+)
 SELECT associated_schema_name || '.' || associated_table_prefix || '_*'
 FROM _timescaledb_catalog.hypertable
-WHERE schema_name = 'raw'
-   OR id IN (SELECT compressed_hypertable_id FROM _timescaledb_catalog.hypertable
-             WHERE schema_name = 'raw' AND compressed_hypertable_id IS NOT NULL)
+WHERE id IN (SELECT id FROM derived_or_raw)
+   OR id IN (SELECT compressed_hypertable_id FROM derived_or_raw)
 ORDER BY 1
 """
 
@@ -102,8 +107,8 @@ def dump_databases(context: OpExecutionContext) -> str:
     with psycopg.connect(
         host=settings.backup_db_host, user="backup", dbname="airspace", password=password
     ) as conn:
-        raw_chunks = [row[0] for row in conn.execute(RAW_CHUNK_PATTERNS_SQL)]
-    context.log.info(f"excluding table data matching {raw_chunks}")
+        excluded = [row[0] for row in conn.execute(EXCLUDED_DATA_PATTERNS_SQL)]
+    context.log.info(f"excluding table data matching {excluded}")
 
     out = Path(tempfile.mkdtemp(prefix="backup-"))
     env = {**os.environ, "PGPASSWORD": password}
@@ -112,7 +117,7 @@ def dump_databases(context: OpExecutionContext) -> str:
         args = ["pg_dump", "-Fc", "-h", settings.backup_db_host, "-U", "backup", "-d", db]
         args += ["-f", str(dump)]
         if db == "airspace":
-            args += exclude_table_data_args(raw_chunks)
+            args += exclude_table_data_args(excluded)
         _run(context, args, env)
         context.log.info(f"{dump.name}: {dump.stat().st_size} bytes")
     return str(out)

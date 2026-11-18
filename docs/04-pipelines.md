@@ -191,14 +191,14 @@ A gap is a run of ≥ 4 consecutive slots (`requested_at` on the collector's 90 
 
 ### `backup`
 
-1. `pg_dump -Fc airspace` excluding the data of the chunk tables of `raw.state_vectors` and `raw.opensky_flights`: one `--exclude-table-data=_timescaledb_internal._hyper_<id>_*` pattern per hypertable, built from its chunk prefix in TimescaleDB's catalog. The pattern also covers the `<chunk>_compressed` tables, which TimescaleDB 2.30 no longer lists in its catalog. Everything else, including continuous-aggregate data, is dumped.
+1. `pg_dump -Fc airspace` excluding the chunk data of `raw.state_vectors`, `raw.opensky_flights` and every continuous aggregate's materialisation hypertable (`agg.traffic_h3_15m`; [D13](11-tasks.md#decided-while-building)): one `--exclude-table-data=_timescaledb_internal._hyper_<id>_*` pattern per hypertable, built from its chunk prefix in TimescaleDB's catalog. The pattern also covers the `<chunk>_compressed` tables, which TimescaleDB 2.30 no longer lists in its catalog. Everything else is dumped, including the aggregates' definitions.
 2. `pg_dump -Fc dagster` and `pg_dump -Fc mlflow`.
 3. `rclone copy` the three dumps (and, once MLflow exists, the `mlflow-artifacts` volume) to R2 `airspace-backup/YYYY-MM-DD/`. Keep the 14 newest days.
 4. **R2 cap ([D7](11-tasks.md#decided-while-building)):** if backups plus `airspace-archive` exceed 8 GB, delete the oldest archive files until they fit. Backups are never deleted for the cap.
 
 The job runs in the dagster-code container as the read-only `backup` role ([D8](11-tasks.md#decided-while-building)), with the PostgreSQL 16 client and rclone in the image. The rclone remote `r2` comes from `RCLONE_CONFIG_R2_*` variables set in `infra/compose.yml`. CI runs it against a local directory and restores the dump into a new database (`infra/test-db.sh`).
 
-**Restore:** create the databases, `SELECT timescaledb_pre_restore();`, `pg_restore`, `SELECT timescaledb_post_restore();`, then replay the collector's R2 archives with `collector.replay` ([below](#idempotency-and-replays)). Do not refresh the continuous aggregate before the raw data is back.
+**Restore:** create the databases, `SELECT timescaledb_pre_restore();`, `pg_restore`, `SELECT timescaledb_post_restore();`, then replay the collector's R2 archives with `collector.replay` ([below](#idempotency-and-replays)). Once the raw data is back, rebuild the aggregate over the replayed range with `CALL refresh_continuous_aggregate('agg.traffic_h3_15m', <start>, <end>)`; aggregate history older than the archives is lost (D13).
 
 ## Catch-up after an outage or the M0 backlog
 

@@ -60,6 +60,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | D10 | The OurAirports seed loads airports with an ICAO code and an elevation (10,398 of 86,371), and open runways with an `le_ident` (11,211); a repeated `(airport, le_ident)` keeps the longest runway. Resolves Q4 | 335 ICAO airports have no elevation and a guessed 0 would give wrong heights; 16 runways have no identifier and 2 identifiers repeat. None of them is at a target airport (decided 2026-11-17) |
 | D11 | `agg_backfill_refresh` scans batches received since the end of its last successful run (first run: 65 min; at most 7 days), not a fixed 65 min. Resolves Q7 | A single failed hourly run would otherwise leave late data unmaterialised for good (decided 2026-11-17) |
 | D12 | Grafana is reachable on the tailnet only (`airspace-vm:3001`, admin login) until the public launch; externally shared dashboards wait for the domain and Cloudflare (M1.2) | Same reason as D3: nothing is public yet (decided 2026-11-17) |
+| D13 | Backups leave out continuous-aggregate data (`agg.traffic_h3_15m`) as well as raw chunk data. After a restore the aggregate is refreshed from the replayed raw data | With the aggregate's 11.5M rows the daily dump grew from 0.8 MB to 210 MB, and 14 such copies (3–4 GB, growing) would push the archives under the Pi's 30 days within the D7 cap. The aggregate is derived from raw; accepted loss: aggregate history older than the R2 archives (decided 2026-11-18) |
 
 ## M0 · Foundations (weeks 0–1)
 
