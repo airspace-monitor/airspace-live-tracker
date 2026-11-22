@@ -1,5 +1,5 @@
 # Lint, type check, tests, the migration test and image builds on every PR and push
-# (docs/09-conventions.md#cicd). JS checks join when web/ exists.
+# (docs/09-conventions.md#cicd).
 name: ci
 
 on:
@@ -38,6 +38,27 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: bash infra/test-db.sh
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test:run
+      - run: pnpm build
 
   images:
     runs-on: ubuntu-latest

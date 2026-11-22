@@ -21,7 +21,8 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 | Orchestrator | Dagster on the VM (tailnet `:3000`): `backup` daily 04:00 UTC to R2, `collector_gap_check` every 5 min |
 | Dashboards | Grafana "Airspace ops" on the tailnet (`airspace-vm:3001`) |
 | Stream worker | `services/stream` in the compose stack: squawk (Europe only, [D14](#decided-while-building)) and go-around events into `core.events` from every live snapshot |
-| Not started | web app, ML, LLM |
+| Web app | `web/` React 19 + Vite shell (M2.4): layout, live header from `/stats`, Events feed from `/events`, tabs, attribution, bottom sheet under 900 px. Map layers and the remaining panels are next |
+| Not started | map layers, ML, LLM |
 | public-api | `services/api` serves all of M2.1 as `app_reader`: `/live/snapshot`, `/stats`, `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/live/stream` (SSE), `/health`. Runs in the compose stack on the VM (`127.0.0.1:8001`) |
 
 ## Open questions found while building
@@ -102,7 +103,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M1.11 | Compression-policy migration, merged after the drain | A | ✅ | Applied on the VM 2026-11-05 (job 1005, every 12 h). First run compressed 5 days from 6.0 GB to 2.1 GB (2.9×, 69 B/row), lower than the ~10× estimated (Q16) |
 | M1.12 | Dagster webserver, daemon and code location (tailnet only) | A | ✅ | 2026-11-08: one image (`services/orchestrator`) runs all three; storage in the `dagster` database; webserver on `127.0.0.1:3000`, shared to the tailnet with `tailscale serve`. CI's migration test also checks that the webserver loads the `airspace` code location. No jobs yet; `backup` (M1.16) is the first |
 | M1.13 | Grafana provisioning; ops dashboards (rows/min, slot coverage, gaps), externally shared | A | ✅ | 2026-11-17: Grafana 12.4.3 with the datasource (`grafana_reader`) and the "Airspace ops" dashboard provisioned from `infra/grafana`; CI runs every panel query as `grafana_reader`. Tailnet only ([D12](#decided-while-building)); external sharing comes with M1.2 |
-| M1.14 | `ci.yml`: ruff, mypy, pytest, ESLint, tsc, Vitest, migration test, multi-arch build | A | ✅ | Green since 2026-11-08 in the `airspace-monitor` organization (the repo moved there because Actions would not start on the previous owner's account). Python checks, `infra/test-db.sh`, amd64 + arm64 builds of ingest, api, collector and orchestrator. JS checks join with `web/` |
+| M1.14 | `ci.yml`: ruff, mypy, pytest, ESLint, tsc, Vitest, migration test, multi-arch build | A | ✅ | Green since 2026-11-08 in the `airspace-monitor` organization (the repo moved there because Actions would not start on the previous owner's account). Python checks, `infra/test-db.sh`, amd64 + arm64 builds of ingest, api, collector and orchestrator. JS checks in `web/`: ESLint, tsc, Vitest and the production build |
 | M1.15 | `deploy.yml` and `infra/deploy.sh` (Tailscale, pull → migrate → up), GHCR | A | ✅ | Live since 2026-11-08: every merge to `main` runs CI, then deploys to the VM over Tailscale (first automatic deploy: PR #12). Images build on the VM; GHCR deferred |
 | M1.16 | Daily `backup` job to R2; restore drill | A | ✅ | Live 2026-11-16 (Dagster, daily 04:00 UTC). First backup 0.78 MB, since raw chunk data is left out. Restore drill from R2 into a scratch database matched the live `ops` tables. CI repeats the drill on every PR. Raw data is not in the backups: until M1.20 its only off-VM copies are the collectors' `spool/sent` |
 | M1.17 | Local dev command with the fixture database | A | ⬜ | |
@@ -118,7 +119,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M2.1 | public-api: `/live/snapshot`, `/live/stream` (SSE), `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/stats`, `/health` | B | ✅ | `services/api` serves all seven endpoints as `app_reader` (130 tests). `Dockerfile` and compose service `public-api` (`127.0.0.1:8001`); built and smoke-tested on the VM 2026-11-15. `/stats` keeps TimescaleDB chunk exclusion (61 s → 23 ms at 85M rows). Left for M2.8: CORS and `tailscale serve` |
 | M2.2 | stream-worker: squawk and go-around events, `ops.stream_state` | A | ✅ | 2026-11-22: `services/stream`, role `stream_worker`, LISTEN `new_snapshot` plus a 60 s re-check; progress in `ops.stream_state` (seeded with `-infinity`). Squawk events only in the Europe box after 3 airborne observations ([D14](#decided-while-building)). Go-arounds at the `ref.airports` targets; height uses METAR QNH once `metar_fetch` (M2.3) fills `core.metar`. CI runs the worker against live-timed snapshots. ETA inference joins when the `eta` model exists (M4) |
 | M2.3 | `metar_fetch` job | A | ⬜ | |
-| M2.4 | Web app shell: layout, header stats, attribution footer, bottom sheet under 900 px | B | ⬜ | |
+| M2.4 | Web app shell: layout, header stats, attribution footer, bottom sheet under 900 px | B | ✅ | `web/` Vite 8 + React 19 + TypeScript strict: live header (`/stats`), Events feed (`/events`), tabs, attribution, bottom sheet under 900 px. Shell ~83 KB gzip JS + ~5 KB CSS; `MapPane` is a lazy chunk. ESLint/Prettier/Vitest; CI runs the web checks |
 | M2.5 | Map: aircraft layer, altitude colours, smooth motion, aircraft card, selected trail | B | ⬜ | |
 | M2.6 | Events panel with cursor paging and map fly-to | B | ⬜ | |
 | M2.7 | Cloudflare Pages project with PR previews | B | ⬜ | |
