@@ -1,0 +1,34 @@
+# P3 stream-worker (docs/04-pipelines.md). Exactly one consumer of new snapshots, so updates stop
+# the old pod before starting the new one. No HTTP port: the process exits on fatal errors and
+# Kubernetes restarts it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stream-worker
+  labels:
+    app: stream-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stream-worker
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: stream-worker
+    spec:
+      containers:
+        - name: stream-worker
+          image: airspace-stream
+          imagePullPolicy: Never  # built and imported on the VM by infra/deploy.sh
+          env:
+            - name: STREAM_WORKER_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: airspace-env, key: STREAM_WORKER_PASSWORD }
+            - name: DATABASE_URL
+              value: postgres://stream_worker:$(STREAM_WORKER_PASSWORD)@db:5432/airspace?sslmode=disable
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "1", memory: 512Mi }

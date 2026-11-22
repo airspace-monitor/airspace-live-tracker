@@ -1,0 +1,44 @@
+# dbmate migrations (docs/09-conventions.md#migrations). Not part of the Kustomize stack: Jobs are
+# immutable, so infra/deploy.sh deletes the old one, applies this and waits for it to finish
+# before the new code starts. The migrations ConfigMap is built by deploy.sh from db/migrations.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: airspace
+  labels:
+    app: migrate
+    app.kubernetes.io/part-of: airspace
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: dbmate
+          image: ghcr.io/amacneil/dbmate:2.37.0
+          args: [up]
+          env:
+            - name: AIRSPACE_OWNER_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: airspace-env, key: AIRSPACE_OWNER_PASSWORD }
+            - name: DATABASE_URL
+              value: postgres://airspace_owner:$(AIRSPACE_OWNER_PASSWORD)@db:5432/airspace?sslmode=disable
+            - { name: DBMATE_MIGRATIONS_DIR, value: /db/migrations }
+            - { name: DBMATE_NO_DUMP_SCHEMA, value: "true" }
+            - { name: DBMATE_WAIT, value: "true" }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          volumeMounts:
+            - name: migrations
+              mountPath: /db/migrations
+              readOnly: true
+      volumes:
+        - name: migrations
+          configMap:
+            name: airspace-migrations

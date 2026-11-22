@@ -1,0 +1,108 @@
+# PostgreSQL 16 + TimescaleDB + PostGIS (docs/03-data-model.md). One replica, pinned to the server
+# node by its local volume. The headless service gives it the name `db`, as in compose.yml.
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  labels:
+    app: db
+spec:
+  clusterIP: None
+  selector:
+    app: db
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+  labels:
+    app: db
+spec:
+  serviceName: db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      # Time for a clean shutdown checkpoint before the kill.
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: db
+          # Exact tag: needs TimescaleDB >= 2.19 (timescale/timescaledb#7672). Same as compose.yml.
+          image: timescale/timescaledb-ha:pg16.15-ts2.30.2
+          ports:
+            - name: postgres
+              containerPort: 5432
+          # POSTGRES_PASSWORD and the role passwords that db-init needs; nothing else from the
+          # secret (least privilege: no R2 or Grafana keys in the database pod).
+          env:
+            - { name: TS_TUNE_MEMORY, value: 4GB }
+            - { name: TS_TUNE_NUM_CPUS, value: "2" }
+            - { name: TIMESCALEDB_TELEMETRY, value: "off" }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: airspace-env, key: POSTGRES_PASSWORD } }
+            - name: AIRSPACE_OWNER_PASSWORD
+              valueFrom: { secretKeyRef: { name: airspace-env, key: AIRSPACE_OWNER_PASSWORD } }
+            - name: INGEST_WRITER_PASSWORD
+              valueFrom: { secretKeyRef: { name: airspace-env, key: INGEST_WRITER_PASSWORD } }
+            - name: STREAM_WORKER_PASSWORD
+              valueFrom: { secretKeyRef: { name: airspace-env, key: STREAM_WORKER_PASSWORD } }
+            - name: JOBS_PASSWORD
+              valueFrom: { secretKeyRef: { name: airspace-env, key: JOBS_PASSWORD } }
+            - name: APP_READER_PASSWORD
+              valueFrom: { secretKeyRef: { name: airspace-env, key: APP_READER_PASSWORD } }
+            - name: LLM_READONLY_PASSWORD
+              valueFrom: { secretKeyRef: { name: airspace-env, key: LLM_READONLY_PASSWORD } }
+            - name: GRAFANA_READER_PASSWORD
+              valueFrom: { secretKeyRef: { name: airspace-env, key: GRAFANA_READER_PASSWORD } }
+            - name: DAGSTER_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: airspace-env, key: DAGSTER_DB_PASSWORD } }
+            - name: MLFLOW_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: airspace-env, key: MLFLOW_DB_PASSWORD } }
+            - name: BACKUP_PASSWORD
+              valueFrom: { secretKeyRef: { name: airspace-env, key: BACKUP_PASSWORD } }
+          resources:
+            # No CPU limit: throttling a database hurts more than sharing two cores.
+            requests: { cpu: 500m, memory: 2Gi }
+            limits: { memory: 6Gi }
+          readinessProbe:
+            exec:
+              command: [sh, -c, "psql -U postgres -d airspace -c 'SELECT 1' >/dev/null"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: [pg_isready, -U, postgres]
+            # Crash recovery after an unclean stop can take minutes.
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          volumeMounts:
+            - name: data
+              mountPath: /home/postgres/pgdata
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+            # Parallel query workers need more than the 64 MB default.
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: db-data
+        - name: init
+          configMap:
+            name: db-init
+            defaultMode: 0755
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi

@@ -7,10 +7,10 @@ A live world map of aircraft, with predictions and an AI assistant on top. We co
 ## How it works
 
 1. **Collect:** a computer at home fetches the position of every aircraft OpenSky can see, every 90 seconds, and saves each response locally before uploading it. It runs at home because OpenSky blocks requests from data centres.
-2. **Process:** a cloud server stores the positions, works out flights, spots unusual traffic and predicts arrivals.
+2. **Process:** a cloud server, running the services as Kubernetes workloads on k3s, stores the positions, works out flights, spots unusual traffic and predicts arrivals.
 3. **Show:** a website with the live map, an arrival board, an alert feed, an AI summary and an AI chat.
 
-**Stack:** Python, FastAPI, PostgreSQL with TimescaleDB and PostGIS, Dagster, MLflow, LightGBM, Grafana, Claude, React, MapLibre, deck.gl, Docker, GitHub Actions.
+**Stack:** Python, FastAPI, PostgreSQL with TimescaleDB and PostGIS, Dagster, MLflow, LightGBM, Grafana, Claude, React, MapLibre, deck.gl, Docker, Kubernetes (k3s), GitHub Actions.
 
 ## What we're building
 
@@ -24,6 +24,7 @@ A live world map of aircraft, with predictions and an AI assistant on top. We co
 - AI airspace summary every 30 minutes, built only from facts in our database.
 - AI chat that answers questions in plain English and shows the database query behind each answer.
 - Public dashboards showing data collection health and model results.
+- Carbon-aware operations: a simulated carbon signal makes heavy jobs wait for cleaner hours and switches services to an eco mode, with emissions per job on a dashboard.
 
 **Stretch, only if time allows:** a smarter destination guess, a smarter unusual-traffic model, holding-pattern alerts, self-hosted map tiles.
 
