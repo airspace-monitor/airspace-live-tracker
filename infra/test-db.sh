@@ -100,11 +100,13 @@ echo "ourairports seed test passed"
 # stream-worker (M2.2): live snapshots relative to now, announced with NOTIFY as ingest does.
 # e00001 squawks 7700 over Hungary 4 times (one event, keyed by its first observation); e00002
 # squawks outside the Europe box and e00003 only twice (no events, D14); e00004 descends and
-# then climbs near LOWW (one go-around, not a second one for the continued climb).
+# then climbs near LOWW (one go-around, not a second one for the continued climb). The ingest
+# smoke test's live snapshot may be newer than these, so the progress row is reset first.
 dc build stream-worker
 dc up -d --wait stream-worker
 dc exec -T db psql -U postgres -d airspace -q -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN;
+UPDATE ops.stream_state SET last_snapshot_time = '-infinity';
 WITH t AS (SELECT k, date_trunc('second', now()) - (6 - k) * interval '60 seconds' AS ts
            FROM generate_series(0, 5) k)
 INSERT INTO raw.state_vectors (snapshot_time, icao24, batch_id, time_position, lat, lon,
@@ -132,6 +134,7 @@ for _ in $(seq 30); do
   [ "$(stream_events)" = "go_around:e00004,squawk_7700:e00001" ] && break
   sleep 1
 done
+[ "$(stream_events)" = "go_around:e00004,squawk_7700:e00001" ] || dc logs stream-worker | tail -30
 dc exec -T stream-worker python -m stream --once >/dev/null
 dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
 DO $$
@@ -148,7 +151,7 @@ BEGIN
     RAISE EXCEPTION 'unexpected go-around title';
   END IF;
   IF (SELECT last_snapshot_time FROM ops.stream_state)
-     <> (SELECT max(snapshot_time) FROM raw.state_vectors WHERE icao24 LIKE 'e0000%') THEN
+     < (SELECT max(snapshot_time) FROM raw.state_vectors WHERE icao24 LIKE 'e0000%') THEN
     RAISE EXCEPTION 'ops.stream_state did not advance to the newest snapshot';
   END IF;
 END $$;
