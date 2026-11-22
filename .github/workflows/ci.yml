@@ -49,6 +49,8 @@ jobs:
             file: services/ingest/Dockerfile
           - service: api
             file: services/api/Dockerfile
+          - service: stream
+            file: services/stream/Dockerfile
           - service: collector
             file: collector/Dockerfile
           - service: orchestrator

@@ -20,7 +20,8 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 | Pipeline | pc-daniel uploads to ingest-api on the VM over Tailscale; batches land in TimescaleDB. On 2026-11-03: 2,780 snapshots, 27.5M state vectors, 314k flight-list rows, nothing rejected; database 6.5 GB, uncompressed |
 | Orchestrator | Dagster on the VM (tailnet `:3000`): `backup` daily 04:00 UTC to R2, `collector_gap_check` every 5 min |
 | Dashboards | Grafana "Airspace ops" on the tailnet (`airspace-vm:3001`) |
-| Not started | stream worker, web app, ML, LLM |
+| Stream worker | `services/stream` in the compose stack: squawk (Europe only, [D14](#decided-while-building)) and go-around events into `core.events` from every live snapshot |
+| Not started | web app, ML, LLM |
 | public-api | `services/api` serves all of M2.1 as `app_reader`: `/live/snapshot`, `/stats`, `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/live/stream` (SSE), `/health`. Runs in the compose stack on the VM (`127.0.0.1:8001`) |
 
 ## Open questions found while building
@@ -61,6 +62,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | D11 | `agg_backfill_refresh` scans batches received since the end of its last successful run (first run: 65 min; at most 7 days), not a fixed 65 min. Resolves Q7 | A single failed hourly run would otherwise leave late data unmaterialised for good (decided 2026-11-17) |
 | D12 | Grafana is reachable on the tailnet only (`airspace-vm:3001`, admin login) until the public launch; externally shared dashboards wait for the domain and Cloudflare (M1.2) | Same reason as D3: nothing is public yet (decided 2026-11-17) |
 | D13 | Backups leave out continuous-aggregate data (`agg.traffic_h3_15m`) as well as raw chunk data. After a restore the aggregate is refreshed from the replayed raw data | With the aggregate's 11.5M rows the daily dump grew from 0.8 MB to 210 MB, and 14 such copies (3–4 GB, growing) would push the archives under the Pi's 30 days within the D7 cap. The aggregate is derived from raw; accepted loss: aggregate history older than the R2 archives (decided 2026-11-18) |
+| D14 | Squawk events only count airborne observations with a position inside a Europe box (lat 35–72, lon −25–45), and an episode needs 3 of them before it becomes an event | Over 7 days (2026-11-15 to 22), 7500, 7600 and 7700 appeared worldwide as often as ordinary codes such as 7300 and 7400: about 30 episodes per code per day even with 3 airborne observations, and neither a code change nor a steady code told them apart. The rule as first written would have produced ~490 events a day, almost all noise. Inside Europe, 7700 stood out (15 a week, against 2–5 for the control codes). Expect ~21 events a week, the 7500 and 7600 ones still partly noise (decided 2026-11-22) |
 
 ## M0 · Foundations (weeks 0–1)
 
@@ -113,7 +115,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | # | Task | Track | Status | Notes |
 |---|---|---|---|---|
 | M2.1 | public-api: `/live/snapshot`, `/live/stream` (SSE), `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/stats`, `/health` | B | ✅ | `services/api` serves all seven endpoints as `app_reader` (130 tests). `Dockerfile` and compose service `public-api` (`127.0.0.1:8001`); built and smoke-tested on the VM 2026-11-15. `/stats` keeps TimescaleDB chunk exclusion (61 s → 23 ms at 85M rows). Left for M2.8: CORS and `tailscale serve` |
-| M2.2 | stream-worker: squawk and go-around events, `ops.stream_state` | A | ⬜ | Go-arounds use `ref.airports` from M1.18 |
+| M2.2 | stream-worker: squawk and go-around events, `ops.stream_state` | A | ✅ | 2026-11-22: `services/stream`, role `stream_worker`, LISTEN `new_snapshot` plus a 60 s re-check; progress in `ops.stream_state` (seeded with `-infinity`). Squawk events only in the Europe box after 3 airborne observations ([D14](#decided-while-building)). Go-arounds at the `ref.airports` targets; height uses METAR QNH once `metar_fetch` (M2.3) fills `core.metar`. CI runs the worker against live-timed snapshots. ETA inference joins when the `eta` model exists (M4) |
 | M2.3 | `metar_fetch` job | A | ⬜ | |
 | M2.4 | Web app shell: layout, header stats, attribution footer, bottom sheet under 900 px | B | ⬜ | |
 | M2.5 | Map: aircraft layer, altitude colours, smooth motion, aircraft card, selected trail | B | ⬜ | |

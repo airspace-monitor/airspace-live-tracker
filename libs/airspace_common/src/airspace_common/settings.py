@@ -46,6 +46,14 @@ class ApiSettings(BaseSettings):
     database_url: SecretStr
 
 
+class StreamSettings(BaseSettings):
+    """P3 stream-worker (docs/04-pipelines.md#p3--stream-worker), connecting as `stream_worker`."""
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    database_url: SecretStr
+
+
 class AdminSettings(BaseSettings):
     """Ingest admin CLI, connecting as `airspace_owner`."""
 

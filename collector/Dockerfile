@@ -8,6 +8,7 @@ COPY pyproject.toml uv.lock .python-version ./
 COPY services/api/pyproject.toml services/api/pyproject.toml
 COPY services/ingest/pyproject.toml services/ingest/pyproject.toml
 COPY services/orchestrator/pyproject.toml services/orchestrator/pyproject.toml
+COPY services/stream/pyproject.toml services/stream/pyproject.toml
 COPY libs libs
 COPY collector collector
 # The cache mount keeps downloaded packages between builds, so a build that failed halfway on the

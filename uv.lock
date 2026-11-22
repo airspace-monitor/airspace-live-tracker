@@ -10,6 +10,7 @@ members = [
     "airspace-ingest",
     "airspace-live-tracker",
     "airspace-orchestrator",
+    "airspace-stream",
 ]
 
 [[package]]
@@ -98,6 +99,7 @@ dependencies = [
     { name = "airspace-common" },
     { name = "airspace-ingest" },
     { name = "airspace-orchestrator" },
+    { name = "airspace-stream" },
 ]
 
 [package.dev-dependencies]
@@ -115,6 +117,7 @@ requires-dist = [
     { name = "airspace-common", editable = "libs/airspace_common" },
     { name = "airspace-ingest", editable = "services/ingest" },
     { name = "airspace-orchestrator", editable = "services/orchestrator" },
+    { name = "airspace-stream", editable = "services/stream" },
 ]
 
 [package.metadata.requires-dev]
@@ -144,6 +147,23 @@ requires-dist = [
     { name = "dagster-postgres", specifier = "==0.29.29" },
     { name = "dagster-webserver", specifier = "==1.13.29" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+]
+
+[[package]]
+name = "airspace-stream"
+version = "0.1.0"
+source = { editable = "services/stream" }
+dependencies = [
+    { name = "airspace-common" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "structlog" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "airspace-common", editable = "libs/airspace_common" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "structlog", specifier = ">=24.4" },
 ]
 
 [[package]]
