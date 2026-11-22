@@ -90,7 +90,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M1.2 | Cloudflare DNS (`api`, `ingest`, `grafana` proxied, Full strict), Origin CA certificate, Caddy | A | ⬜ | Moved to before a public launch (D3). Needs M0.6 |
 | M1.3 | `infra/compose.yml` and `compose.dev.yml`; pinned `timescaledb-ha` image (TimescaleDB ≥ 2.19) | A | ✅ | `pg16.15-ts2.30.2`. Database running on the VM since 2026-10-30; files copied by hand until M1.15 |
 | M1.4 | Migrations: schemas, roles, `ops`, `raw` (no compression policy), `ref`, `core`, `agg`, `ml`, `llm` ([03](03-data-model.md)) | A | ✅ | `agg.traffic_h3_15m` and `agg.coverage_15m` come with M1.10; `llm.v_*` with the chat. Open for M2: `stream_worker` has no INSERT on `ops.stream_state`, so its first row needs a decision |
-| M1.5 | CI migration test, including the compressed-chunk `ON CONFLICT` test (timescaledb#7672) | A | 🟡 | `infra/test-db.sh` and `db/tests/test_schema.sql` pass on the VM; Wired into `ci.yml` (M1.14) |
+| M1.5 | CI migration test, including the compressed-chunk `ON CONFLICT` test (timescaledb#7672) | A | ✅ | `infra/test-db.sh` and `db/tests/test_schema.sql` (with the #7672 test) run in `ci.yml` on every PR and push (M1.14) |
 | M1.6 | ingest-api `POST /ingest/v1/batches` ([05](05-api-contract.md#post-ingestv1batches)) | A | ✅ | Running on the VM since 2026-10-30, built there by hand until M1.15. `infra/test-db.sh` covers it end to end |
 | M1.7 | Admin CLI `add-collector` (argon2id key hash) | A | ✅ | Run through the `ingest-admin` compose service |
 | M1.8 | Collector uploader (oldest-first, back-off, 401/413/422 handling); then `UPLOAD_ENABLED=true` | A | ✅ | Enabled on pc-daniel 2026-10-30 |
@@ -119,7 +119,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M2.5 | Map: aircraft layer, altitude colours, smooth motion, aircraft card, selected trail | B | ⬜ | |
 | M2.6 | Events panel with cursor paging and map fly-to | B | ⬜ | |
 | M2.7 | Cloudflare Pages project with PR previews | B | ⬜ | |
-| M2.8 | Cloudflare rate-limit rule, firewall, CORS | A | ⬜ | |
+| M2.8 | Cloudflare rate-limit rule, firewall, CORS | A | ⬜ | While private, public-api is shared to the tailnet with `tailscale serve` on `airspace-vm:8001` (since 2026-11-22, so the web app can be built against it) |
 | M2.9 | Every item in [01 Networking and security](01-architecture.md#networking-and-security) checked before the URL is shared | both | ⬜ | |
 
 ## M3 · Curated data (weeks 3–5)

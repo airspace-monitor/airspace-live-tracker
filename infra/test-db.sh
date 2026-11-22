@@ -9,6 +9,7 @@ for var in POSTGRES AIRSPACE_OWNER INGEST_WRITER STREAM_WORKER JOBS APP_READER L
 done
 echo "INGEST_HOST_PORT=18000" >> "$env_file"  # the real ingest-api may be using 8000
 echo "DAGSTER_HOST_PORT=13000" >> "$env_file"
+echo "API_HOST_PORT=18001" >> "$env_file"
 echo "GRAFANA_HOST_PORT=13001" >> "$env_file"
 # The backup job writes to a local directory instead of R2.
 { echo "R2_RCLONE_TYPE=local"; echo "BACKUP_BUCKET=/tmp/r2/airspace-backup"; echo "ARCHIVE_BUCKET=/tmp/r2/airspace-archive"; } >> "$env_file"
@@ -26,6 +27,12 @@ dc build ingest-api
 dc up -d --wait ingest-api
 key=$(dc run --rm -T ingest-admin add-collector --id smoke-01 --owner test)
 dc exec -T -e COLLECTOR_KEY="$key" ingest-api python - < ../db/tests/ingest_smoke.py
+
+# public-api: the image starts, turns healthy and answers as app_reader.
+dc build public-api
+dc up -d --wait public-api
+dc exec -T public-api python -c "import urllib.request as u; u.urlopen('http://127.0.0.1:8001/api/v1/stats', timeout=10)"
+echo "public-api smoke test passed"
 
 # Dagster: the webserver loads the `airspace` code location from dagster-code.
 dc build dagster-code

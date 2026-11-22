@@ -84,7 +84,8 @@ VM
     ├── db                  no published port
     ├── migrate             one-off: dbmate up
     ├── ingest-api          127.0.0.1:8000 → tailscale serve while private (D3)
-    ├── public-api, stream-worker
+    ├── public-api          127.0.0.1:8001 → tailscale serve while private (D3)
+    ├── stream-worker
     ├── dagster-webserver   127.0.0.1:3000 → tailscale serve
     ├── dagster-daemon, dagster-code
     ├── mlflow              127.0.0.1:5000 → tailscale serve
