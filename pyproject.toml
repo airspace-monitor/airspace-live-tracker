@@ -3,7 +3,7 @@ name = "airspace-live-tracker"
 version = "0.1.0"
 description = "Workspace root: installs every Python package for local development and CI."
 requires-python = ">=3.12,<3.13"
-dependencies = ["airspace-api", "airspace-common", "airspace-collector", "airspace-ingest", "airspace-orchestrator"]
+dependencies = ["airspace-api", "airspace-common", "airspace-collector", "airspace-ingest", "airspace-orchestrator", "airspace-stream"]
 
 [dependency-groups]
 dev = ["httpx>=0.28", "mypy>=1.13", "pytest>=8.3", "ruff>=0.8"]
@@ -17,9 +17,10 @@ airspace-common = { workspace = true }
 airspace-collector = { workspace = true }
 airspace-ingest = { workspace = true }
 airspace-orchestrator = { workspace = true }
+airspace-stream = { workspace = true }
 
 [tool.uv.workspace]
-members = ["collector", "libs/airspace_common", "services/api", "services/ingest", "services/orchestrator"]
+members = ["collector", "libs/airspace_common", "services/api", "services/ingest", "services/orchestrator", "services/stream"]
 
 [tool.ruff]
 line-length = 100

@@ -115,7 +115,7 @@ CREATE TABLE ops.model_runs (                   -- one row per training run; pub
   PRIMARY KEY (model, version)
 );
 
-CREATE TABLE ops.stream_state (                 -- single row; stream-worker progress
+CREATE TABLE ops.stream_state (                 -- single row, seeded with -infinity; stream-worker progress
   id                  boolean PRIMARY KEY DEFAULT true CHECK (id),
   last_snapshot_time  timestamptz NOT NULL
 );

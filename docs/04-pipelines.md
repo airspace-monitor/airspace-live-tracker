@@ -116,11 +116,16 @@ Listens on `new_snapshot`. It keeps its progress in `ops.stream_state.last_snaps
 
 | Job | Rule | Output |
 |---|---|---|
-| Squawk events | An *episode* is consecutive observations of one `icao24` with `squawk` ∈ {7500, 7600, 7700}, gaps ≤ 30 min. One event per episode and code; `ts` and key use the episode's first observation | `core.events` |
+| Squawk events | An *episode* is consecutive qualifying observations of one `icao24` with one `squawk` ∈ {7500, 7600, 7700}, gaps ≤ 30 min. A qualifying observation is airborne (`on_ground` false), has a position, and lies in the Europe box, lat 35–72 and lon −25–45 ([D14](11-tasks.md#decided-while-building)). An episode becomes one event per code once it has 3 qualifying observations; `ts`, key and location use its first observation | `core.events` |
 | Go-around | Within 15 km of a target airport; height above the airport < 1,000 m; an observation with `vertical_rate_ms < −2` followed within the next 3 observations by one with `vertical_rate_ms > +2`; no `on_ground` in between. `ts` = the climbing observation's `time_position` | `core.events` |
 | ETA inference | Every inbound candidate (see [Shared definitions](#shared-definitions)) for each target airport, using the `eta@champion` model | `ml.eta_predictions` |
 
 ETAs exist only for flights that already have a `flight_id`, so a new flight gets its first ETA after the next `flights_sessionizer` run (≤ 5 min).
+
+- **Startup:** `ops.stream_state` is seeded with `-infinity`, so a fresh worker starts with every live snapshot. It also re-checks for new snapshots every 60 s, in case a notification was missed.
+- **Squawk:** the episode is looked up in the aircraft's last 12 h. An episode reaching back to the edge of that window is skipped, since its event was already written.
+- **Go-around:** the climbing observation is the current snapshot's. The descending one is the latest of the aircraft's previous 3 observations (within 30 min) with `vertical_rate_ms < −2`. Every observation from the descending one to the climbing one is within 15 km of the same target airport, below 1,000 m above it, and not `on_ground`, and none between them climbs at more than +2 m/s. So a climb that lasts several snapshots gives one event. The height uses the shared definition, with the airport's latest METAR when `core.metar` has one.
+- **Titles:** `Squawk 7700 emergency (DLH4AB)`, `Squawk 7600 radio failure (…)`, `Squawk 7500 unlawful interference (…)`, `Go-around at LOWW (AUA478)`. The icao24 stands in when the callsign is unknown.
 
 ## P4 · Orchestrated jobs
 

@@ -76,6 +76,18 @@ services:
       # Local only. `tailscale serve` exposes it to the tailnet (docs/01-architecture.md).
       - "127.0.0.1:${API_HOST_PORT:-8001}:8001"
 
+  stream-worker:
+    image: airspace-stream:local
+    build:
+      context: ..
+      dockerfile: services/stream/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://stream_worker:${STREAM_WORKER_PASSWORD:?}@db:5432/airspace?sslmode=disable
+
   ingest-admin:
     image: airspace-ingest:local
     profiles: [tools]

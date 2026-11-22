@@ -97,6 +97,67 @@ END $$;
 SQL
 echo "ourairports seed test passed"
 
+# stream-worker (M2.2): live snapshots relative to now, announced with NOTIFY as ingest does.
+# e00001 squawks 7700 over Hungary 4 times (one event, keyed by its first observation); e00002
+# squawks outside the Europe box and e00003 only twice (no events, D14); e00004 descends and
+# then climbs near LOWW (one go-around, not a second one for the continued climb). The ingest
+# smoke test's live snapshot may be newer than these, so the progress row is reset first.
+dc build stream-worker
+dc up -d --wait stream-worker
+dc exec -T db psql -U postgres -d airspace -q -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
+UPDATE ops.stream_state SET last_snapshot_time = '-infinity';
+WITH t AS (SELECT k, date_trunc('second', now()) - (6 - k) * interval '60 seconds' AS ts
+           FROM generate_series(0, 5) k)
+INSERT INTO raw.state_vectors (snapshot_time, icao24, batch_id, time_position, lat, lon,
+                               baro_altitude_m, on_ground, vertical_rate_ms, squawk, callsign)
+SELECT t.ts, a.icao24, '00000000-0000-7000-8000-0000000000c1', t.ts, a.lat, a.lon, a.alt, false,
+       a.vr, a.squawk, a.callsign
+FROM t JOIN (VALUES
+  ('e00001', 0, 47.5, 19.0, 9000, 0, '7700', 'WZZ1'), ('e00001', 1, 47.5, 19.1, 9000, 0, '7700', 'WZZ1'),
+  ('e00001', 2, 47.5, 19.2, 9000, 0, '7700', 'WZZ1'), ('e00001', 3, 47.5, 19.3, 9000, 0, '7700', 'WZZ1'),
+  ('e00002', 0, 30.0, 19.0, 9000, 0, '7700', 'XYZ2'), ('e00002', 1, 30.0, 19.1, 9000, 0, '7700', 'XYZ2'),
+  ('e00002', 2, 30.0, 19.2, 9000, 0, '7700', 'XYZ2'), ('e00002', 3, 30.0, 19.3, 9000, 0, '7700', 'XYZ2'),
+  ('e00003', 2, 47.6, 19.5, 9000, 0, '7600', 'WZZ3'), ('e00003', 3, 47.6, 19.6, 9000, 0, '7600', 'WZZ3'),
+  ('e00004', 1, 48.13, 16.60, 600, -1, '1000', 'AUA478'), ('e00004', 2, 48.13, 16.60, 400, -4, '1000', 'AUA478'),
+  ('e00004', 3, 48.13, 16.61, 450, 6, '1000', 'AUA478'), ('e00004', 4, 48.14, 16.62, 600, 7, '1000', 'AUA478'),
+  ('e00005', 5, 47.0, 18.0, 10000, 0, '2000', 'WZZ5')
+) AS a(icao24, k, lat, lon, alt, vr, squawk, callsign) USING (k);
+NOTIFY new_snapshot;
+COMMIT;
+SQL
+stream_events() {
+  dc exec -T db psql -U postgres -d airspace -A -t -c \
+    "SELECT string_agg(kind || ':' || icao24, ',' ORDER BY kind, icao24) FROM core.events WHERE icao24 LIKE 'e0000%'"
+}
+for _ in $(seq 30); do
+  [ "$(stream_events)" = "go_around:e00004,squawk_7700:e00001" ] && break
+  sleep 1
+done
+[ "$(stream_events)" = "go_around:e00004,squawk_7700:e00001" ] || dc logs stream-worker | tail -30
+dc exec -T stream-worker python -m stream --once >/dev/null
+dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
+DO $$
+DECLARE first_obs timestamptz := (SELECT min(snapshot_time) FROM raw.state_vectors WHERE icao24 = 'e00001');
+BEGIN
+  IF (SELECT array_agg(dedupe_key ORDER BY dedupe_key) FROM core.events WHERE icao24 LIKE 'e0000%')
+     IS DISTINCT FROM ARRAY[
+       'go_around:e00004:' || to_char((SELECT snapshot_time FROM raw.state_vectors WHERE icao24 = 'e00004' AND vertical_rate_ms = 6) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+       'squawk_7700:e00001:' || to_char(first_obs AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')] THEN
+    RAISE EXCEPTION 'unexpected stream events: %',
+      (SELECT array_agg(dedupe_key) FROM core.events WHERE icao24 LIKE 'e0000%');
+  END IF;
+  IF (SELECT title FROM core.events WHERE kind = 'go_around' AND icao24 = 'e00004') <> 'Go-around at LOWW (AUA478)' THEN
+    RAISE EXCEPTION 'unexpected go-around title';
+  END IF;
+  IF (SELECT last_snapshot_time FROM ops.stream_state)
+     < (SELECT max(snapshot_time) FROM raw.state_vectors WHERE icao24 LIKE 'e0000%') THEN
+    RAISE EXCEPTION 'ops.stream_state did not advance to the newest snapshot';
+  END IF;
+END $$;
+SQL
+echo "stream-worker test passed"
+
 # Aggregates (M1.10): a batch received now for 2026-10-29 10:00 is late, so agg_backfill_refresh
 # materialises that day. Only airborne rows with an H3 cell count; app_reader can read the result.
 dc exec -T db psql -U postgres -d airspace -q -v ON_ERROR_STOP=1 <<'SQL'

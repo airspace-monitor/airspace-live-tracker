@@ -7,6 +7,7 @@ COPY pyproject.toml uv.lock .python-version ./
 COPY collector/pyproject.toml collector/pyproject.toml
 COPY services/api/pyproject.toml services/api/pyproject.toml
 COPY services/orchestrator/pyproject.toml services/orchestrator/pyproject.toml
+COPY services/stream/pyproject.toml services/stream/pyproject.toml
 COPY libs libs
 COPY services/ingest services/ingest
 RUN uv sync --frozen --no-dev --no-editable --package airspace-ingest
