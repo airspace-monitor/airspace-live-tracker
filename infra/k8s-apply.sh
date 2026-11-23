@@ -46,14 +46,16 @@ main() {
   kubectl -n "$NS" get pods -o wide
 }
 
-# Build with the compose definitions (same Dockerfiles as CI), then tag each image by its ID: an
-# unchanged image keeps its tag, so its pods are not restarted.
+# Build with the compose definitions (same Dockerfiles as CI), then tag each image by a hash of its
+# layers and config: an unchanged image keeps its tag, so its pods are not restarted. Not the image
+# ID: with the containerd image store it covers build attestations that change on every build.
 build_and_import() {
   (cd infra && docker compose --env-file "../$1" build --quiet)
   : > /tmp/airspace-image-tags
   for img in "${IMAGES[@]}"; do
     local tag
-    tag=$(docker image inspect -f '{{.Id}}' "$img:local" | cut -d: -f2 | cut -c1-12)
+    tag=$(docker image inspect -f '{{json .RootFS.Layers}}{{json .Config}}' "$img:local" |
+      sha256sum | cut -c1-12)
     docker tag "$img:local" "$img:$tag"
     if ! sudo k3s ctr -n k8s.io images ls -q "name==docker.io/library/$img:$tag" | grep -q .; then
       echo "importing $img:$tag"

@@ -86,7 +86,7 @@ jobs:
         run: bash infra/k3s-install.sh
       - name: Deploy the stack
         run: |
-          env_file=$(mktemp -p "$PWD" ci-env.XXXX)
+          env_file=$(mktemp -p "$PWD" .env.ci.XXXX)  # .env.* stays out of build contexts
           for var in POSTGRES AIRSPACE_OWNER INGEST_WRITER STREAM_WORKER JOBS APP_READER LLM_READONLY GRAFANA_READER DAGSTER_DB MLFLOW_DB BACKUP GRAFANA_ADMIN; do
             echo "${var}_PASSWORD=test" >> "$env_file"
           done
@@ -108,6 +108,9 @@ jobs:
           # NodePorts listen on 127.0.0.1 only.
           ip=$(hostname -I | awk '{print $1}')
           ! curl -s -m 3 "http://$ip:30800/healthz"
+      - name: Kernel denials (AppArmor)
+        if: always()
+        run: sudo dmesg | grep -i 'apparmor="DENIED"' | tail -20 || true
       - name: Show the cluster on failure
         if: failure()
         run: |
