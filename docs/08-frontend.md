@@ -88,7 +88,7 @@ Typography: Inter for UI; JetBrains Mono for callsigns, codes, SQL and numbers.
 - **Briefing:** latest `content_md` as Markdown, a "generated hh:mm UTC by <model>" line and a countdown to the next one.
 - **Ask:** a text input (500-character limit shown) with 4 example-question chips. Each answer shows Markdown, a collapsible syntax-highlighted SQL block and a result table. 429 responses show "Limit reached, try again later".
 - **Arrivals:** a segmented control VIE / BTS / BUD and a board with columns *callsign · from · ETA (p50) · range (p10–p90) · distance · phase*. Clicking a row selects the aircraft.
-- **Events:** reverse-chronological feed with severity as colour **and** text label, UTC time and title; infinite scroll with the `/events` cursor. Clicking an event with a location flies the map there.
+- **Events:** reverse-chronological feed with severity as colour **and** text label, UTC time and title; infinite scroll with the `/events` cursor. Clicking an event with a location flies the map there. Hovering or focusing a squawk number explains it (7500 unlawful interference, 7600 radio failure, 7700 general emergency).
 - **Aircraft card** (map overlay): callsign, type, registration, airline; altitude, speed and vertical rate in ft / kt / fpm; "Likely destination" with top-3 bars and the label "estimate"; ETA as p50 with the p10–p90 range, if one exists.
 - **Anomaly legend:** "more / less traffic than usual for this hour of the week". Hovering a `low` cell adds "may be a receiver coverage gap". When `baseline_kind = cold_start`, a "baseline warming up" badge.
 
