@@ -104,7 +104,7 @@ Every workload has CPU and memory requests, a memory limit, and readiness and li
 
 - **Images:** CI (`ci.yml`) builds every image for `linux/amd64` and `linux/arm64` with Buildx to prove it builds. The VM builds its own images from the checkout and imports them into k3s's containerd, tagged by image ID, so an unchanged image does not restart its pods. Pushing to GHCR (`ghcr.io/<org>/airspace-<service>`) comes when a second node needs to pull them.
 - **The VM runs a git checkout of `main`** in `/home/ubuntu/airspace` (since 2026-11-07), with `infra/.env` beside it (not in git).
-- **Setup, once:** `infra/k3s-install.sh` installs the pinned k3s, allows the pod and service ranges through Oracle's default iptables rules, labels the node and writes ubuntu's kubeconfig. `infra/k3s-cutover.sh` stops Compose, moves the Docker volumes to `/srv/airspace/`, deploys, and points `tailscale serve` at the NodePorts; `--rollback` reverses it.
+- **Setup, once:** `infra/k3s-install.sh` installs the pinned k3s, allows the pod and service ranges through Oracle's default iptables rules, labels the node and makes the kubeconfig readable by the deploying user's group. `infra/k3s-cutover.sh` stops Compose, moves the Docker volumes to `/srv/airspace/`, deploys, and points `tailscale serve` at the NodePorts; `--rollback` reverses it.
 - **Deploy** (`deploy.yml`, after `ci.yml` passes on `main`, or started by hand):
   1. The runner joins the tailnet with `tailscale/github-action` as an ephemeral `tag:ci` node (OAuth client from Actions secrets).
   2. It SSHes to the VM with a deploy key that can only run `infra/deploy.sh` (a forced command in `authorized_keys`), checking the VM's pinned host key.
