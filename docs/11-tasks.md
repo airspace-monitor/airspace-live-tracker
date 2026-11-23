@@ -11,7 +11,7 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 
 | Area | State |
 |---|---|
-| Docs | Grounding docs 00–10 and ADRs 0001–0005 on `main` |
+| Docs | Grounding docs 00–10 and ADRs 0001–0006 on `main` |
 | Python workspace | uv workspace at the repo root (Python 3.12): `collector`, `libs/airspace_common`. ruff, mypy (on `libs/`), pytest. `.gitignore`, `.env.example` |
 | `libs/airspace_common` | `settings.py` (collector settings), `timefmt.py` (`iso_z`), `log.py` (structlog JSON) |
 | Collector v0 | State-vector loop on the 90 s grid, OAuth2 token handling, atomic spool writes, failure handling (retry, 429 back-off, failed envelopes), daily flight-list task with restart-safe progress, single-instance lock, `status` command. 38 tests |
@@ -169,7 +169,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 |---|---|---|---|---|
 | MK.1 | Kustomize manifests for every service (probes, requests and limits, HPA on public-api, local volumes), `k3s-install.sh`, `k8s-apply.sh`, `deploy.sh` on k3s, `ingest-admin.sh`; CI `k8s` job on a throwaway k3s | A | ✅ | [ADR-0005](adr/0005-single-node-k3s.md). CI `k8s` job green 2026-11-23 (PR #34): deploys twice with no restarts, all four services answer. The db pod runs without containerd's AppArmor profile (it blocked Postgres's own signals). Merged 2026-11-23 |
 | MK.2 | Cutover on the VM: `k3s-install.sh`, then `k3s-cutover.sh` (Compose volumes to `/srv/airspace`, deploy, `tailscale serve` to the NodePorts); check the Pi's uploads drain | A | ✅ | 2026-11-23: down 11:37:44–11:45:16 UTC (7.5 min); 16 GB database moved in place; the Pi's spooled batches arrived at 11:49 with none rejected. A cold copy of the pre-cutover database is in `/srv/airspace-precutover` (delete once k3s has run for a week). The next deploy through `deploy.yml` imported no image and restarted no pod. Rollback: `k3s-cutover.sh --rollback` |
-| MK.3 | ADR-0006: carbon-aware design (signal, actions, SLOs, measurement) | both | ⬜ | Simulated signal; time-shifting and eco profiles, no node switching ([D15](#decided-while-building)) |
+| MK.3 | ADR-0006: carbon-aware design (signal, actions, SLOs, measurement) | both | 🟡 | [ADR-0006](adr/0006-carbon-aware-operations.md) proposed 2026-11-23: synthetic day curve with a demo override, Dagster sensor for deferrable jobs with deadlines, a controller pod for the eco profile (public-api HPA cap, slower non-urgent schedules) and SLO probes, CodeCarbon energy × the signal. Waits for Alek's review |
 | MK.4 | Simulated carbon-intensity service and its Grafana panel | A | ⬜ | |
 | MK.5 | gCO₂e per job and per request (CodeCarbon or CPU-time estimate; no power counters on the ARM VM) | A | ⬜ | |
 | MK.6 | Carbon-aware controller: Dagster sensor that delays deferrable jobs to a green window before their deadline; eco profiles for services; SLO checks for ingest and the live map | both | ⬜ | |
