@@ -5,7 +5,7 @@ The working task list for the whole application, by milestone ([10](10-roadmap.m
 Status: ✅ done · 🟡 in progress · ⬜ to do · ⛔ blocked (the note says on what).
 Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#work-split)). Track A is owned by Dániel, Track B by Alek.
 
-*Last updated: 2026-11-22.*
+*Last updated: 2026-11-23.*
 
 ## What exists now
 
@@ -16,7 +16,7 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 | `libs/airspace_common` | `settings.py` (collector settings), `timefmt.py` (`iso_z`), `log.py` (structlog JSON) |
 | Collector v0 | State-vector loop on the 90 s grid, OAuth2 token handling, atomic spool writes, failure handling (retry, 429 back-off, failed envelopes), daily flight-list task with restart-safe progress, single-instance lock, `status` command. 38 tests |
 | Collection | **pi-daniel collecting 24/7 since 2026-11-07** on the Raspberry Pi (Debian 13 arm64, 4 GB RAM, 64 GB microSD) in Docker (`collector/compose.yml`). pc-daniel collected 2026-10-29 to 11-07, off overnight; its task `airspace-collector` is stopped and must stay disabled (D4) |
-| Server | Oracle A1 VM `airspace-vm` (Frankfurt, 2 OCPU, 12 GB, 200 GB) with Docker and Tailscale, created 2026-10-30. No inbound ports open to the internet. Runs the database, ingest-api, public-api and Dagster from a git checkout of `main`, deployed with `infra/deploy.sh`; moving from Compose to single-node k3s (MK.1–MK.2, [ADR-0005](adr/0005-single-node-k3s.md)) |
+| Server | Oracle A1 VM `airspace-vm` (Frankfurt, 2 OCPU, 12 GB, 200 GB) with Docker and Tailscale, created 2026-10-30. No inbound ports open to the internet. Runs the database, ingest-api, public-api, stream-worker, Dagster and Grafana as pods on single-node k3s since 2026-11-23 ([ADR-0005](adr/0005-single-node-k3s.md)), from a git checkout of `main`, deployed with `infra/deploy.sh` |
 | Pipeline | pc-daniel uploads to ingest-api on the VM over Tailscale; batches land in TimescaleDB. On 2026-11-03: 2,780 snapshots, 27.5M state vectors, 314k flight-list rows, nothing rejected; database 6.5 GB, uncompressed |
 | Orchestrator | Dagster on the VM (tailnet `:3000`): `backup` daily 04:00 UTC to R2, `collector_gap_check` every 5 min |
 | Dashboards | Grafana "Airspace ops" on the tailnet (`airspace-vm:3001`) |
@@ -167,8 +167,8 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 
 | # | Task | Track | Status | Notes |
 |---|---|---|---|---|
-| MK.1 | Kustomize manifests for every service (probes, requests and limits, HPA on public-api, local volumes), `k3s-install.sh`, `k8s-apply.sh`, `deploy.sh` on k3s, `ingest-admin.sh`; CI `k8s` job on a throwaway k3s | A | 🟡 | [ADR-0005](adr/0005-single-node-k3s.md). CI `k8s` job green 2026-11-23 (PR #34): deploys twice with no restarts, all four services answer. The db pod runs without containerd's AppArmor profile (it blocked Postgres's own signals). Waits for review |
-| MK.2 | Cutover on the VM: `k3s-install.sh`, then `k3s-cutover.sh` (Compose volumes to `/srv/airspace`, deploy, `tailscale serve` to the NodePorts); check the Pi's uploads drain | A | ⬜ | After MK.1 is merged. Rollback: `k3s-cutover.sh --rollback` |
+| MK.1 | Kustomize manifests for every service (probes, requests and limits, HPA on public-api, local volumes), `k3s-install.sh`, `k8s-apply.sh`, `deploy.sh` on k3s, `ingest-admin.sh`; CI `k8s` job on a throwaway k3s | A | ✅ | [ADR-0005](adr/0005-single-node-k3s.md). CI `k8s` job green 2026-11-23 (PR #34): deploys twice with no restarts, all four services answer. The db pod runs without containerd's AppArmor profile (it blocked Postgres's own signals). Merged 2026-11-23 |
+| MK.2 | Cutover on the VM: `k3s-install.sh`, then `k3s-cutover.sh` (Compose volumes to `/srv/airspace`, deploy, `tailscale serve` to the NodePorts); check the Pi's uploads drain | A | ✅ | 2026-11-23: down 11:37:44–11:45:16 UTC (7.5 min); 16 GB database moved in place; the Pi's spooled batches arrived at 11:49 with none rejected. A cold copy of the pre-cutover database is in `/srv/airspace-precutover` (delete once k3s has run for a week). The next deploy through `deploy.yml` imported no image and restarted no pod. Rollback: `k3s-cutover.sh --rollback` |
 | MK.3 | ADR-0006: carbon-aware design (signal, actions, SLOs, measurement) | both | ⬜ | Simulated signal; time-shifting and eco profiles, no node switching ([D15](#decided-while-building)) |
 | MK.4 | Simulated carbon-intensity service and its Grafana panel | A | ⬜ | |
 | MK.5 | gCO₂e per job and per request (CodeCarbon or CPU-time estimate; no power counters on the ARM VM) | A | ⬜ | |
