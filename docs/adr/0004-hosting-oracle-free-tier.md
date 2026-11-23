@@ -1,6 +1,6 @@
 # ADR-0004 · Host the server on Oracle Cloud Always Free
 
-**Status:** accepted · 2026-10-29 · revised 2026-10-31
+**Status:** accepted · 2026-10-29 · revised 2026-10-31 · the Compose part is superseded by [ADR-0005](0005-single-node-k3s.md) (2026-11-22); the VM and its hosting stay
 
 ## Context
 The first plan was a Hetzner CX33 (4 vCPU, 8 GB, 80 GB, €8.99/month). In October 2026 it is listed as currently not available; the closest orderable plan costs €35.99/month. Azure's $100 student credit covers only about 6 weeks of an 8 GB VM.

@@ -2,7 +2,7 @@
 
 ## Instance and databases
 
-One PostgreSQL 16 instance (image `timescale/timescaledb-ha:pg16`, pinned in `infra/compose.yml` to an exact tag that ships **TimescaleDB 2.19 or newer**; older releases silently drop rows on `INSERT … ON CONFLICT DO NOTHING` into compressed chunks, timescale/timescaledb#7672). The image includes PostGIS and is built for amd64 and arm64.
+One PostgreSQL 16 instance (image `timescale/timescaledb-ha:pg16`, pinned in `infra/compose.yml` and `infra/k8s/db.yaml` to an exact tag that ships **TimescaleDB 2.19 or newer**; older releases silently drop rows on `INSERT … ON CONFLICT DO NOTHING` into compressed chunks, timescale/timescaledb#7672). The image includes PostGIS and is built for amd64 and arm64.
 
 | Database | Owner role | Contents |
 |---|---|---|

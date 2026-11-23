@@ -1,0 +1,130 @@
+# State lives on the VM's disk in /srv/airspace (docs/adr/0005-single-node-k3s.md). Static local
+# volumes, pinned to the node labelled airspace/role=server; infra/k3s-cutover.sh moved the old
+# Docker volumes there. Retain: deleting a claim never deletes the data.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  labels:
+    app: storage
+  name: airspace-local
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    app: storage
+  name: airspace-db-data
+spec:
+  capacity:
+    storage: 150Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: airspace-local
+  claimRef:
+    namespace: airspace
+    name: db-data
+  local:
+    path: /srv/airspace/db-data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: airspace/role
+              operator: In
+              values: [server]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    app: storage
+  name: airspace-dagster-storage
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: airspace-local
+  claimRef:
+    namespace: airspace
+    name: dagster-storage
+  local:
+    path: /srv/airspace/dagster-storage
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: airspace/role
+              operator: In
+              values: [server]
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    app: storage
+  name: airspace-grafana-data
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: airspace-local
+  claimRef:
+    namespace: airspace
+    name: grafana-data
+  local:
+    path: /srv/airspace/grafana-data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: airspace/role
+              operator: In
+              values: [server]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app: storage
+  name: db-data
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: airspace-local
+  volumeName: airspace-db-data
+  resources:
+    requests:
+      storage: 150Gi
+---
+# Shared by dagster-code, -webserver and -daemon: ReadWriteOnce allows pods on the same node.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app: storage
+  name: dagster-storage
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: airspace-local
+  volumeName: airspace-dagster-storage
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app: storage
+  name: grafana-data
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: airspace-local
+  volumeName: airspace-grafana-data
+  resources:
+    requests:
+      storage: 2Gi

@@ -68,3 +68,55 @@ jobs:
           push: false
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  k8s:
+    # The production manifests on a throwaway single-node k3s, set up by the same scripts as the
+    # VM (docs/adr/0005-single-node-k3s.md): schema check, then build, import, migrate, roll out
+    # and smoke-test every service through its NodePort.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate the manifests against the Kubernetes schemas
+        run: |
+          curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
+          kubectl kustomize infra | ./kubeconform -strict -summary -
+          ./kubeconform -strict -summary infra/k8s/jobs/migrate.yaml
+      - name: Install k3s
+        run: bash infra/k3s-install.sh
+      - name: Deploy the stack
+        run: |
+          env_file=$(mktemp -p "$PWD" .env.ci.XXXX)  # .env.* stays out of build contexts
+          for var in POSTGRES AIRSPACE_OWNER INGEST_WRITER STREAM_WORKER JOBS APP_READER LLM_READONLY GRAFANA_READER DAGSTER_DB MLFLOW_DB BACKUP GRAFANA_ADMIN; do
+            echo "${var}_PASSWORD=test" >> "$env_file"
+          done
+          { echo "R2_ACCOUNT_ID=unset"; echo "R2_ACCESS_KEY_ID="; echo "R2_SECRET_ACCESS_KEY="; } >> "$env_file"
+          bash infra/k8s-apply.sh "$(basename "$env_file")"
+          # Running it again must change nothing and restart nothing.
+          pods() { kubectl -n airspace get pods -l 'app!=migrate' -o name | sort; }
+          before=$(pods)
+          bash infra/k8s-apply.sh "$(basename "$env_file")"
+          [ "$before" = "$(pods)" ]
+      - name: Smoke-test the services
+        run: |
+          curl -sSf --retry 10 --retry-all-errors http://127.0.0.1:30800/healthz
+          curl -sSf --retry 10 --retry-all-errors http://127.0.0.1:30801/api/v1/health
+          curl -sSf --retry 10 --retry-all-errors -o /dev/null http://127.0.0.1:30300/server_info
+          curl -sSf --retry 10 --retry-all-errors http://127.0.0.1:30301/api/health
+          bash infra/ingest-admin.sh add-collector --id ci-01 --owner ci | grep -q .
+          kubectl -n airspace get hpa public-api
+          # NodePorts listen on 127.0.0.1 only.
+          ip=$(hostname -I | awk '{print $1}')
+          ! curl -s -m 3 "http://$ip:30800/healthz"
+      - name: Kernel denials (AppArmor)
+        if: always()
+        run: sudo dmesg | grep -i 'apparmor="DENIED"' | grep -o 'operation="[a-z]*".*comm="[^"]*"' | sed 's/ pid=[0-9]*//' | sort | uniq -c || true
+      - name: Show the cluster on failure
+        if: failure()
+        run: |
+          kubectl -n airspace get all,pvc,events -o wide || true
+          kubectl -n airspace describe pod db-0 | sed -n "/Last State/,/Ready/p" || true
+          for p in $(kubectl -n airspace get pods -o name); do
+            echo "== $p"; kubectl -n airspace logs "$p" --all-containers --tail=50 || true
+            echo "== $p (previous container)"; kubectl -n airspace logs "$p" --all-containers --previous --tail=80 || true
+          done

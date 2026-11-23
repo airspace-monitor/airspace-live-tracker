@@ -22,6 +22,7 @@ Level 1 uses OpenSky's free API as the only live source. Everything below is Lev
 | AI briefing | A short airspace summary every 30 min, written from database facts |
 | AI chat | Plain-English question → SQL against curated views → answer, with the SQL shown |
 | Dashboards | Public Grafana: ingestion, gaps, data quality, model results |
+| Cloud & carbon-aware operations | The server runs as Kubernetes workloads on single-node k3s ([ADR-0005](adr/0005-single-node-k3s.md)). A simulated carbon-intensity signal drives automatic changes: heavy jobs wait for a low-carbon window and services switch to an eco profile, while the live path keeps its SLOs. gCO₂e per job is measured and shown (ADR-0006, planned) |
 
 ### Stretch: only after the core ships
 
@@ -39,7 +40,8 @@ Built in this order, only when the roadmap promotes them ([10](10-roadmap.md)):
 - **ETA:** p50 MAE beats the historical-median baseline B1 on a time-based hold-out week ([06](06-ml.md#2--arrival-time-eta)).
 - **Destination:** the route lookup reports top-1 / top-3 accuracy against the nearest-airport-ahead baseline.
 - **Chat:** at least 80% execution accuracy on the 30+ question golden set, in CI.
-- **Reproducible:** `docker compose -f infra/compose.yml -f infra/compose.dev.yml up` starts the backend with a seeded database on any machine, and each merge to `main` deploys it.
+- **Reproducible:** `docker compose -f infra/compose.yml -f infra/compose.dev.yml up` starts the backend with a seeded database on any machine; CI deploys the same stack to a throwaway k3s on every PR, and each merge to `main` deploys it to k3s on the VM.
+- **Carbon-aware:** flipping the simulated carbon signal changes the system's behaviour automatically, visible on a Grafana dashboard with gCO₂e per job, while ingest and the live map keep their SLOs.
 - **Presentable:** the README has an architecture diagram, a demo video and links to the live app and the public Grafana dashboards.
 
 ## Known limits of the data

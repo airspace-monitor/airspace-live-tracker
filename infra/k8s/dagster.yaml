@@ -1,0 +1,197 @@
+# P4 orchestrator (docs/04-pipelines.md#p4--orchestrated-jobs). One image, three workloads, as in
+# compose.yml. Instance config is baked into the image (services/orchestrator/dagster_home); runs
+# execute inside dagster-code (the default run launcher), so job settings live there only.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dagster-code
+  labels:
+    app: dagster-code
+spec:
+  selector:
+    app: dagster-code
+  ports:
+    - name: grpc
+      port: 4000
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dagster-code
+  labels:
+    app: dagster-code
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dagster-code
+  # Recreate: a rolling update would run two code servers, and runs execute in this pod.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: dagster-code
+    spec:
+      containers:
+        - name: dagster-code
+          image: airspace-orchestrator
+          imagePullPolicy: Never  # built and imported on the VM by infra/deploy.sh
+          command: [dagster, code-server, start, -h, 0.0.0.0, -p, "4000", -m, orchestrator.definitions, --location-name, airspace]
+          ports:
+            - name: grpc
+              containerPort: 4000
+          env:
+            - name: DAGSTER_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: airspace-env, key: DAGSTER_DB_PASSWORD }
+            - name: BACKUP_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: airspace-env, key: BACKUP_PASSWORD }
+            - name: JOBS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: airspace-env, key: JOBS_PASSWORD }
+            - { name: BACKUP_BUCKET, value: airspace-backup }
+            - { name: ARCHIVE_BUCKET, value: airspace-archive }
+            # rclone remote `r2` (docs/01-architecture.md#backups).
+            - { name: RCLONE_CONFIG_R2_TYPE, value: s3 }
+            - { name: RCLONE_CONFIG_R2_PROVIDER, value: Cloudflare }
+            - name: R2_ACCOUNT_ID
+              valueFrom:
+                secretKeyRef: { name: airspace-env, key: R2_ACCOUNT_ID }
+            - name: RCLONE_CONFIG_R2_ENDPOINT
+              value: https://$(R2_ACCOUNT_ID).r2.cloudflarestorage.com
+            - name: RCLONE_CONFIG_R2_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef: { name: airspace-env, key: R2_ACCESS_KEY_ID }
+            - name: RCLONE_CONFIG_R2_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: { name: airspace-env, key: R2_SECRET_ACCESS_KEY }
+          resources:
+            # Runs (backup, aggregates) execute here, so it gets the most headroom.
+            requests: { cpu: 200m, memory: 512Mi }
+            limits: { memory: 2Gi }
+          readinessProbe:
+            exec:
+              command: [dagster, api, grpc-health-check, -p, "4000"]
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 10
+          livenessProbe:
+            exec:
+              command: [dagster, api, grpc-health-check, -p, "4000"]
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          volumeMounts:
+            - name: storage
+              mountPath: /opt/dagster/home/storage
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: dagster-storage
+---
+# Tailnet only: NodePort on 127.0.0.1, published by `tailscale serve` as :3000.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dagster-webserver
+  labels:
+    app: dagster-webserver
+spec:
+  type: NodePort
+  selector:
+    app: dagster-webserver
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      nodePort: 30300
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dagster-webserver
+  labels:
+    app: dagster-webserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dagster-webserver
+  template:
+    metadata:
+      labels:
+        app: dagster-webserver
+    spec:
+      containers:
+        - name: dagster-webserver
+          image: airspace-orchestrator
+          imagePullPolicy: Never
+          command: [dagster-webserver, -h, 0.0.0.0, -p, "3000", -w, workspace.yaml]
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: DAGSTER_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: airspace-env, key: DAGSTER_DB_PASSWORD }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+          readinessProbe:
+            httpGet: { path: /server_info, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /server_info, port: http }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - name: storage
+              mountPath: /opt/dagster/home/storage
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: dagster-storage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dagster-daemon
+  labels:
+    app: dagster-daemon
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dagster-daemon
+  # Dagster allows only one daemon per instance.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: dagster-daemon
+    spec:
+      containers:
+        - name: dagster-daemon
+          image: airspace-orchestrator
+          imagePullPolicy: Never
+          command: [dagster-daemon, run, -w, workspace.yaml]
+          env:
+            - name: DAGSTER_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: airspace-env, key: DAGSTER_DB_PASSWORD }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+          volumeMounts:
+            - name: storage
+              mountPath: /opt/dagster/home/storage
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: dagster-storage

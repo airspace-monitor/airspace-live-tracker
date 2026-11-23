@@ -22,9 +22,14 @@ airspace-live-tracker/
 │   └── llm_views.md           # data dictionary used by the chat prompt
 ├── web/                       # React app
 ├── infra/
-│   ├── compose.yml            # full server stack
+│   ├── compose.yml            # full server stack for local dev and CI's migration test
 │   ├── compose.dev.yml        # local dev overrides (seeded DB, no Caddy/TLS)
-│   ├── deploy.sh              # pull → migrate → up
+│   ├── kustomization.yaml     # production stack on k3s (ADR-0005), with k8s/ (manifests) and k8s/jobs/
+│   ├── k3s-install.sh         # one-time k3s setup on a node
+│   ├── k3s-cutover.sh         # one-time move from Compose to k3s (and --rollback)
+│   ├── k8s-apply.sh           # build → import → secret → migrate → apply → wait
+│   ├── deploy.sh              # on the VM: pull main, then k8s-apply.sh
+│   ├── ingest-admin.sh        # collector key admin in a throwaway pod
 │   ├── caddy/Caddyfile
 │   └── grafana/               # provisioned datasources + dashboards (JSON)
 └── .github/workflows/         # ci.yml, deploy.yml, llm-eval.yml
@@ -40,6 +45,7 @@ airspace-live-tracker/
 | DB migrations | **dbmate**, plain SQL, forward-only. Every migration runs in CI against the pinned Timescale image |
 | Containers | One Dockerfile per service, multi-stage, non-root user, built for `linux/amd64` and `linux/arm64`; images `ghcr.io/<org>/airspace-<service>` |
 | Local dev | `docker compose -f infra/compose.yml -f infra/compose.dev.yml up` starts the full stack with the fixture database |
+| Production | Kubernetes manifests in `infra/` (Kustomize, rendered with `kubectl kustomize infra`), applied to single-node k3s ([ADR-0005](adr/0005-single-node-k3s.md)). A change to a service updates `compose.yml` and its manifest in the same PR |
 
 ## Git workflow
 
@@ -53,7 +59,7 @@ airspace-live-tracker/
 
 | Workflow | Trigger | Steps |
 |---|---|---|
-| `ci.yml` | every PR and push | ruff, mypy, pytest; ESLint, tsc, Vitest; migration test (apply all migrations to an empty pinned Timescale container, then run the compressed-chunk insert test); Docker build for both architectures |
+| `ci.yml` | every PR and push | ruff, mypy, pytest; ESLint, tsc, Vitest; migration test (apply all migrations to an empty pinned Timescale container, then run the compressed-chunk insert test); Docker build for both architectures; `k8s`: kubeconform on the manifests, then `k3s-install.sh` and `k8s-apply.sh` (run twice, must restart nothing) on a throwaway k3s and a smoke test of every NodePort |
 | `llm-eval.yml` | PRs touching `services/llm/**`, `db/llm_views.md`, `db/migrations/**`, `db/seeds/fixture/**` | Golden-set eval and briefing number check against the fixture DB ([07](07-llm.md#3--evaluation-ci)) |
 | `deploy.yml` | `ci.yml` passed on `main`, or by hand | Join the tailnet and run `infra/deploy.sh` on the VM ([01](01-architecture.md#deployment)) |
 

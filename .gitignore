@@ -26,3 +26,6 @@ docs/review-notes.md
 
 # pytest temp dirs when TMPDIR is unset
 pytest-of-*/
+
+# k3s deploy overlay written by infra/k8s-apply.sh
+/.deploy/

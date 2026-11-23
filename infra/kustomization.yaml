@@ -1,0 +1,49 @@
+# Production definition of the server stack on k3s (docs/adr/0005-single-node-k3s.md).
+# infra/deploy.sh applies it with image tags set by image ID; compose.yml stays for local dev and CI.
+# Render: kubectl kustomize infra
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: airspace
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: airspace
+
+resources:
+  - k8s/namespace.yaml
+  - k8s/storage.yaml
+  - k8s/db.yaml
+  - k8s/ingest-api.yaml
+  - k8s/public-api.yaml
+  - k8s/stream-worker.yaml
+  - k8s/dagster.yaml
+  - k8s/grafana.yaml
+
+configMapGenerator:
+  # Runs once, when the database volume is empty (same script as compose.yml).
+  - name: db-init
+    files:
+      - db/10-airspace.sh
+    options:
+      labels:
+        app: db
+  - name: grafana-datasources
+    files:
+      - grafana/provisioning/datasources/airspace.yml
+  - name: grafana-dashboard-providers
+    files:
+      - grafana/provisioning/dashboards/airspace.yml
+  - name: grafana-dashboards
+    files:
+      - grafana/dashboards/ops.json
+
+# Our images are built and imported on the VM; deploy.sh overrides newTag with the image ID.
+images:
+  - name: airspace-ingest
+    newTag: local
+  - name: airspace-api
+    newTag: local
+  - name: airspace-stream
+    newTag: local
+  - name: airspace-orchestrator
+    newTag: local

@@ -11,12 +11,12 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 
 | Area | State |
 |---|---|
-| Docs | Grounding docs 00–10 and ADRs 0001–0004 on `main` |
+| Docs | Grounding docs 00–10 and ADRs 0001–0005 on `main` |
 | Python workspace | uv workspace at the repo root (Python 3.12): `collector`, `libs/airspace_common`. ruff, mypy (on `libs/`), pytest. `.gitignore`, `.env.example` |
 | `libs/airspace_common` | `settings.py` (collector settings), `timefmt.py` (`iso_z`), `log.py` (structlog JSON) |
 | Collector v0 | State-vector loop on the 90 s grid, OAuth2 token handling, atomic spool writes, failure handling (retry, 429 back-off, failed envelopes), daily flight-list task with restart-safe progress, single-instance lock, `status` command. 38 tests |
 | Collection | **pi-daniel collecting 24/7 since 2026-11-07** on the Raspberry Pi (Debian 13 arm64, 4 GB RAM, 64 GB microSD) in Docker (`collector/compose.yml`). pc-daniel collected 2026-10-29 to 11-07, off overnight; its task `airspace-collector` is stopped and must stay disabled (D4) |
-| Server | Oracle A1 VM `airspace-vm` (Frankfurt, 2 OCPU, 12 GB, 200 GB) with Docker and Tailscale, created 2026-10-30. No inbound ports open to the internet. Runs the database, ingest-api, public-api and Dagster from a git checkout of `main`, deployed with `infra/deploy.sh` |
+| Server | Oracle A1 VM `airspace-vm` (Frankfurt, 2 OCPU, 12 GB, 200 GB) with Docker and Tailscale, created 2026-10-30. No inbound ports open to the internet. Runs the database, ingest-api, public-api and Dagster from a git checkout of `main`, deployed with `infra/deploy.sh`; moving from Compose to single-node k3s (MK.1–MK.2, [ADR-0005](adr/0005-single-node-k3s.md)) |
 | Pipeline | pc-daniel uploads to ingest-api on the VM over Tailscale; batches land in TimescaleDB. On 2026-11-03: 2,780 snapshots, 27.5M state vectors, 314k flight-list rows, nothing rejected; database 6.5 GB, uncompressed |
 | Orchestrator | Dagster on the VM (tailnet `:3000`): `backup` daily 04:00 UTC to R2, `collector_gap_check` every 5 min |
 | Dashboards | Grafana "Airspace ops" on the tailnet (`airspace-vm:3001`) |
@@ -28,7 +28,7 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 
 | # | Question | Why it matters |
 |---|---|---|
-| Q1 | The remaining decisions flagged in the 2026-10-29 decision review: chat as free text-to-SQL vs fixed query tools; single VM vs k3s or managed services; Oracle vs Contabo; Dagster vs cron; TimescaleDB as the only store | Each is cheaper to change now than after M1 |
+| Q1 | The remaining decisions flagged in the 2026-10-29 decision review: chat as free text-to-SQL vs fixed query tools; ~~single VM vs k3s or managed services~~ (single-node k3s, [D15](#decided-while-building)); Oracle vs Contabo; Dagster vs cron; TimescaleDB as the only store | Each is cheaper to change now than after M1 |
 | Q2 | Zenodo record for the route fallback. DOI 10.5281/zenodo.3737101 (2019–2022, has `icao24`) has a non-commercial licence; 10.5281/zenodo.5815448 (2019–2021, anonymised aircraft) is CC BY 4.0. Routes only need `callsign`, `origin` and `destination` | Decide before M3.5; the README and [02](02-data-sources.md) cite the record in use |
 | Q3 | `flights_sessionizer` reads the last 30 min, so a backlog drained after an outage is never turned into flights without a manual `flights_rebuild` | With one home collector, outages will happen; those arrivals are lost as ETA labels |
 | Q5 | CARTO basemap: raster tiles need an API key. Add the key, a tile budget and the Pages preview origins to [08](08-frontend.md) | Needed for M2 |
@@ -63,6 +63,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | D12 | Grafana is reachable on the tailnet only (`airspace-vm:3001`, admin login) until the public launch; externally shared dashboards wait for the domain and Cloudflare (M1.2) | Same reason as D3: nothing is public yet (decided 2026-11-17) |
 | D13 | Backups leave out continuous-aggregate data (`agg.traffic_h3_15m`) as well as raw chunk data. After a restore the aggregate is refreshed from the replayed raw data | With the aggregate's 11.5M rows the daily dump grew from 0.8 MB to 210 MB, and 14 such copies (3–4 GB, growing) would push the archives under the Pi's 30 days within the D7 cap. The aggregate is derived from raw; accepted loss: aggregate history older than the R2 archives (decided 2026-11-18) |
 | D14 | Squawk events only count airborne observations with a position inside a Europe box (lat 35–72, lon −25–45), and an episode needs 3 of them before it becomes an event | Over 7 days (2026-11-15 to 22), 7500, 7600 and 7700 appeared worldwide as often as ordinary codes such as 7300 and 7400: about 30 episodes per code per day even with 3 airborne observations, and neither a code change nor a steady code told them apart. The rule as first written would have produced ~490 events a day, almost all noise. Inside Europe, 7700 stood out (15 a week, against 2–5 for the control codes). Expect ~21 events a week, the 7500 and 7600 ones still partly noise (decided 2026-11-22) |
+| D15 | The server runs on single-node k3s on the existing VM, and the Pi stays a Docker edge node outside the cluster. Compose stays for local dev and CI. Carbon-aware behaviour shifts heavy jobs in time and switches eco profiles instead of moving work between nodes | The course feedback asked for cloud aspects beyond one Compose setup. Oracle's Always Free A1 allowance is now 2 OCPU / 12 GB per tenancy, all used by this VM, so a second free node is impossible; OKE could not include the Pi. Only the collector could run on the Pi, and it must not break ([ADR-0005](adr/0005-single-node-k3s.md), decided 2026-11-22) |
 
 ## M0 · Foundations (weeks 0–1)
 
@@ -161,6 +162,19 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M5.3 | `llm.v_*` views, `db/llm_views.md`, `llm_readonly` role | B | ⬜ | |
 | M5.4 | `POST /chat` with guardrails and limits; Ask panel | B | ⬜ | |
 | M5.5 | Golden set (30+), fixture database, `llm-eval.yml` (≥ 80%) | B | ⬜ | |
+
+## MK · Cloud & carbon (weeks 4–6)
+
+| # | Task | Track | Status | Notes |
+|---|---|---|---|---|
+| MK.1 | Kustomize manifests for every service (probes, requests and limits, HPA on public-api, local volumes), `k3s-install.sh`, `k8s-apply.sh`, `deploy.sh` on k3s, `ingest-admin.sh`; CI `k8s` job on a throwaway k3s | A | 🟡 | [ADR-0005](adr/0005-single-node-k3s.md). CI `k8s` job green 2026-11-23 (PR #34): deploys twice with no restarts, all four services answer. The db pod runs without containerd's AppArmor profile (it blocked Postgres's own signals). Waits for review |
+| MK.2 | Cutover on the VM: `k3s-install.sh`, then `k3s-cutover.sh` (Compose volumes to `/srv/airspace`, deploy, `tailscale serve` to the NodePorts); check the Pi's uploads drain | A | ⬜ | After MK.1 is merged. Rollback: `k3s-cutover.sh --rollback` |
+| MK.3 | ADR-0006: carbon-aware design (signal, actions, SLOs, measurement) | both | ⬜ | Simulated signal; time-shifting and eco profiles, no node switching ([D15](#decided-while-building)) |
+| MK.4 | Simulated carbon-intensity service and its Grafana panel | A | ⬜ | |
+| MK.5 | gCO₂e per job and per request (CodeCarbon or CPU-time estimate; no power counters on the ARM VM) | A | ⬜ | |
+| MK.6 | Carbon-aware controller: Dagster sensor that delays deferrable jobs to a green window before their deadline; eco profiles for services; SLO checks for ingest and the live map | both | ⬜ | |
+| MK.7 | Sustainability dashboard: signal, decisions, gCO₂e, SLOs | A | ⬜ | |
+| MK.8 | Optional: join the Pi as a k3s agent running only the collector (DaemonSet) | A | ⬜ | Only after MK.2 is stable ([ADR-0005](adr/0005-single-node-k3s.md)) |
 
 ## M6 · Portfolio polish (weeks 7–8)
 
