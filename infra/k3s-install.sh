@@ -38,6 +38,11 @@ if ! k3s --version 2>/dev/null | grep -q "${K3S_VERSION}"; then
   # The official installer verifies the binary's checksum; the version is pinned.
   curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="$K3S_VERSION" sh -
 fi
+# The node object appears a few seconds after k3s starts; `wait` fails if there is none yet.
+for _ in $(seq 60); do
+  [ -n "$(sudo k3s kubectl get nodes -o name 2>/dev/null)" ] && break
+  sleep 5
+done
 sudo k3s kubectl wait --for=condition=Ready node --all --timeout=5m
 
 # kubectl for ubuntu (deploy.sh runs as ubuntu).
