@@ -12,7 +12,7 @@ Task-level status for every milestone: [11 Tasks](11-tasks.md). Weeks are counte
 | **M3 · Curated data** | 3–5 | `flights_sessionizer`, `flight_labels_merge`, `routes_refresh`; `ref_refresh` (takes over airports and runways; first load of aircraft, airlines, countries, H3 → country); `metar_backfill`; DQ checks; `collector_gap_check` | `core.flights` has observed arrivals for LOWW/LZIB/LHBP with `height_method` set; route lookup populated; DQ table green |
 | **M4 · ML** | 4–6 | Unusual-traffic v1 + heatmap + anomaly events; ETA v1 + arrivals board; destination route lookup in the card; MLflow + weekly `train_eta`; `ops.model_runs` + public Models dashboard; model cards | ETA p50 MAE beats B1 on the hold-out; anomaly model card reports injection recall and events/day; destination accuracy vs baseline reported |
 | **M5 · LLM** | 5–7 | Briefing job + panel; chat with guardrails; golden-set eval in CI | ≥ 80% eval accuracy; briefing number check passes on all fixtures |
-| **MK · Cloud & carbon** | 4–6 | Single-node k3s on the VM with probes, limits, HPA and CI on a throwaway k3s ([ADR-0005](adr/0005-single-node-k3s.md)); simulated carbon signal, gCO₂e per job, carbon-aware controller that delays heavy jobs and switches eco profiles while keeping SLOs (ADR-0006); sustainability dashboard | The VM runs every service on k3s and deploys from `main`; flipping the simulated signal changes behaviour automatically and the dashboard shows it, with ingest and the live map within their SLOs |
+| **MK · Cloud & carbon** | 4–6 | Single-node k3s on the VM with probes, limits, HPA and CI on a throwaway k3s ([ADR-0005](adr/0005-single-node-k3s.md)); simulated carbon signal, gCO₂e per job, carbon-aware controller that delays heavy jobs and switches eco profiles while keeping SLOs ([ADR-0006](adr/0006-carbon-aware-operations.md)); sustainability dashboard | The VM runs every service on k3s and deploys from `main`; flipping the simulated signal changes behaviour automatically and the dashboard shows it, with ingest and the live map within their SLOs |
 | **M6 · Portfolio polish** | 7–8 | README with architecture diagram + demo video; model cards final; final report | A stranger can understand and run the project from the README |
 
 ## Stretch
@@ -57,7 +57,7 @@ The unusual-traffic model is shared: Track A builds the aggregates and baseline,
 | Collector device | Raspberry Pi running 24/7, replacing the Windows PC once set up ([D5](11-tasks.md#decided-while-building)) |
 | Hosting | Oracle Cloud Always Free, Contabo fallback ([ADR-0004](adr/0004-hosting-oracle-free-tier.md)) |
 | Runtime | Single-node k3s on the VM; the Pi stays a Docker edge node (decided 2026-11-22, [ADR-0005](adr/0005-single-node-k3s.md)) |
-| Carbon-aware behaviour | A simulated carbon signal; heavy jobs shift in time and services switch eco profiles; no moving work between nodes (decided 2026-11-22; ADR-0006 when built) |
+| Carbon-aware behaviour | A simulated carbon signal; heavy jobs shift in time and services switch eco profiles; no moving work between nodes (decided 2026-11-22; [ADR-0006](adr/0006-carbon-aware-operations.md)) |
 | Chat limits | 10 questions/hour per IP, 200/day globally, $40/month Anthropic spend limit |
 | Model tracking | MLflow stays private; results are public through Grafana and model cards |
 | Retraining | Only in Dagster on the server |

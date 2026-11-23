@@ -22,7 +22,7 @@ Level 1 uses OpenSky's free API as the only live source. Everything below is Lev
 | AI briefing | A short airspace summary every 30 min, written from database facts |
 | AI chat | Plain-English question → SQL against curated views → answer, with the SQL shown |
 | Dashboards | Public Grafana: ingestion, gaps, data quality, model results |
-| Cloud & carbon-aware operations | The server runs as Kubernetes workloads on single-node k3s ([ADR-0005](adr/0005-single-node-k3s.md)). A simulated carbon-intensity signal drives automatic changes: heavy jobs wait for a low-carbon window and services switch to an eco profile, while the live path keeps its SLOs. gCO₂e per job is measured and shown (ADR-0006, planned) |
+| Cloud & carbon-aware operations | The server runs as Kubernetes workloads on single-node k3s ([ADR-0005](adr/0005-single-node-k3s.md)). A simulated carbon-intensity signal drives automatic changes: heavy jobs wait for a low-carbon window and services switch to an eco profile, while the live path keeps its SLOs. gCO₂e per job is measured and shown ([ADR-0006](adr/0006-carbon-aware-operations.md), proposed) |
 
 ### Stretch: only after the core ships
 
