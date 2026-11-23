@@ -23,7 +23,7 @@ metadata:
   labels:
     app: public-api
 spec:
-  replicas: 1
+  # No replicas field: the HPA owns it, and a deploy would otherwise scale it back to 1.
   selector:
     matchLabels:
       app: public-api

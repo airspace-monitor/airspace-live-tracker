@@ -33,6 +33,13 @@ spec:
     spec:
       # Time for a clean shutdown checkpoint before the kill.
       terminationGracePeriodSeconds: 120
+      securityContext:
+        # containerd's default AppArmor profile on Ubuntu 24.04 kernels denies signals between the
+        # Postgres processes (peer "cri-containerd.apparmor.d//&unconfined"): the startup process
+        # cannot wake the checkpointer, so crash recovery and clean shutdowns hang. Seen in CI on
+        # 2026-11-23. The container still runs as the non-root postgres user.
+        appArmorProfile:
+          type: Unconfined
       containers:
         - name: db
           # Exact tag: needs TimescaleDB >= 2.19 (timescale/timescaledb#7672). Same as compose.yml.

@@ -110,7 +110,7 @@ jobs:
           ! curl -s -m 3 "http://$ip:30800/healthz"
       - name: Kernel denials (AppArmor)
         if: always()
-        run: sudo dmesg | grep -i 'apparmor="DENIED"' | tail -20 || true
+        run: sudo dmesg | grep -i 'apparmor="DENIED"' | grep -o 'operation="[a-z]*".*comm="[^"]*"' | sed 's/ pid=[0-9]*//' | sort | uniq -c || true
       - name: Show the cluster on failure
         if: failure()
         run: |
