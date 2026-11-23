@@ -167,7 +167,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 
 | # | Task | Track | Status | Notes |
 |---|---|---|---|---|
-| MK.1 | Kustomize manifests for every service (probes, requests and limits, HPA on public-api, local volumes), `k3s-install.sh`, `k8s-apply.sh`, `deploy.sh` on k3s, `ingest-admin.sh`; CI `k8s` job on a throwaway k3s | A | 🟡 | [ADR-0005](adr/0005-single-node-k3s.md). Written 2026-11-22 on `feat/k3s`; waits for the CI run and review |
+| MK.1 | Kustomize manifests for every service (probes, requests and limits, HPA on public-api, local volumes), `k3s-install.sh`, `k8s-apply.sh`, `deploy.sh` on k3s, `ingest-admin.sh`; CI `k8s` job on a throwaway k3s | A | 🟡 | [ADR-0005](adr/0005-single-node-k3s.md). CI `k8s` job green 2026-11-23 (PR #34): deploys twice with no restarts, all four services answer. The db pod runs without containerd's AppArmor profile (it blocked Postgres's own signals). Waits for review |
 | MK.2 | Cutover on the VM: `k3s-install.sh`, then `k3s-cutover.sh` (Compose volumes to `/srv/airspace`, deploy, `tailscale serve` to the NodePorts); check the Pi's uploads drain | A | ⬜ | After MK.1 is merged. Rollback: `k3s-cutover.sh --rollback` |
 | MK.3 | ADR-0006: carbon-aware design (signal, actions, SLOs, measurement) | both | ⬜ | Simulated signal; time-shifting and eco profiles, no node switching ([D15](#decided-while-building)) |
 | MK.4 | Simulated carbon-intensity service and its Grafana panel | A | ⬜ | |
