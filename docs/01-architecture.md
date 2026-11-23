@@ -24,6 +24,7 @@ flowchart LR
     STREAM["stream-worker"]
     MLF["MLflow (private)"]
     GRAF["Grafana"]
+    SIG["carbon-signal<br/>(simulated grid)"]
   end
 
   CF --> CADDY
@@ -35,6 +36,7 @@ flowchart LR
   STREAM --> DB
   ORCH --> DB
   ORCH --> MLF
+  ORCH -- "intensity" --> SIG
   API --> DB
   GRAF --> DB
 
@@ -59,6 +61,7 @@ flowchart LR
 | **orchestrator** | VM (3 k3s Deployments) | Scheduled, windowed jobs ([04](04-pipelines.md#p4--orchestrated-jobs)) | Dagster (webserver, daemon, code location) |
 | **public-api** | VM (k3s Deployment, 1–3 replicas by HPA) | Read API, SSE stream, chat | FastAPI |
 | **mlflow** | VM | Experiment tracking and model registry; private | MLflow, Postgres backend, `mlflow-artifacts` volume |
+| **carbon-signal** | VM (k3s Deployment, 1 replica, cluster-internal) | The simulated grid's carbon intensity and forecast, with a demo override ([ADR-0006](adr/0006-carbon-aware-operations.md), [05](05-api-contract.md#carbon-signal-cluster-internal)) | FastAPI |
 | **grafana** | VM (k3s Deployment, 1 replica) | Ops, data-quality and model dashboards; shared publicly as externally shared dashboards | Grafana OSS |
 | **web** | Cloudflare Pages | Single-page app | React 19, TypeScript, Vite, MapLibre GL, deck.gl |
 | **caddy** | VM | TLS termination with the Cloudflare Origin CA certificate, routing by hostname | Caddy 2 |
@@ -91,6 +94,7 @@ VM (node label airspace/role=server)
     ├── dagster-code          Deployment ×1, Recreate; runs execute here; /srv/airspace/dagster-storage
     ├── dagster-webserver     Deployment ×1   127.0.0.1:30300 → tailnet :3000
     ├── dagster-daemon        Deployment ×1, Recreate (one daemon per instance)
+    ├── carbon-signal         Deployment ×1, Recreate; ClusterIP :8002, no NodePort (ADR-0006)
     ├── mlflow                (M4.5)          → tailnet :5000
     ├── grafana               Deployment ×1, Recreate   127.0.0.1:30301 → tailnet :3001 (D12); /srv/airspace/grafana-data
     └── caddy                 (before a public launch) :443 → api.<domain>, ingest.<domain>, grafana.<domain>

@@ -6,7 +6,7 @@
 set -euo pipefail
 
 NS=airspace
-IMAGES=(airspace-ingest airspace-api airspace-stream airspace-orchestrator)
+IMAGES=(airspace-ingest airspace-api airspace-stream airspace-orchestrator airspace-carbon)
 # Local volume directories and the user each image runs as (infra/k8s/storage.yaml).
 VOLUMES=("db-data 1000" "dagster-storage 10002" "grafana-data 472")
 

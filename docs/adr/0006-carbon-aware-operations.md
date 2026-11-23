@@ -27,7 +27,7 @@ flowchart LR
 ### 1. Signal: `carbon-signal` service
 - A small FastAPI Deployment in the `airspace` namespace. It plays the outside world (the grid operator), so nothing else computes intensity.
 - **Curve:** a synthetic Central European day in gCO₂e/kWh: lowest around midday (solar), highest in the early evening, between about 120 and 450. Seeded noise is derived from the timestamp, so the same instant always returns the same value: replays and tests are deterministic.
-- **Override for demos:** `PUT /v1/override {"intensity": 420, "until": "..."}` pins the value; `DELETE /v1/override` returns to the curve. Readings report `source: curve | override`.
+- **Override for demos:** `PUT /v1/override {"intensity_g_kwh": 420, "until": "..."}` pins the value; `DELETE /v1/override` returns to the curve. Readings report `source: curve | override`.
 - **Time scale:** `SIGNAL_TIME_SCALE` (default 1) speeds up the simulated clock for a demo, for example 60 for one simulated day in 24 minutes. Production runs at 1.
 - **API:** `GET /v1/intensity?at=` and `GET /v1/forecast?hours=24` (hourly points). Cluster-internal only: no NodePort.
 

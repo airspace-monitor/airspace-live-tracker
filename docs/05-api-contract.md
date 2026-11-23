@@ -189,3 +189,33 @@ Flight list (one two-hour window):
 ### `GET /healthz`
 
 `{"status":"ok"}` when ingest-api can reach the database. Used by the container health check.
+
+## carbon-signal (cluster-internal)
+
+The simulated grid ([ADR-0006](adr/0006-carbon-aware-operations.md)): `http://carbon-signal:8002` inside the cluster, no NodePort and no authentication. Errors use the same `{"error": {"code", "message"}}` envelope as the public API.
+
+### `GET /v1/intensity?at=<ISO>`
+
+```json
+{"at": "2026-11-24T10:20:00.000Z", "simulated_at": "2026-11-24T10:20:00.000Z", "intensity_g_kwh": 214.7, "source": "curve"}
+```
+
+- `at` defaults to now; it must carry a UTC offset (422 `invalid_time`).
+- `simulated_at` differs from `at` only when `SIGNAL_TIME_SCALE` is above 1 (demo).
+- `source` is `override` while a demo override is active, otherwise `curve`. The curve is deterministic: the same `simulated_at` always gives the same value.
+
+### `GET /v1/forecast?hours=24`
+
+`{"generated_at": "...", "points": [<reading>, ...]}`: one reading per hour from the next full hour, `hours` from 1 to 48 (422 `invalid_hours`). Hours an active override still covers show the override.
+
+### `PUT /v1/override`
+
+Body `{"intensity_g_kwh": 420, "until": "2026-11-24T12:00:00Z"}`. Pins the intensity until `until` (default: one hour from now, at most 24 h; 422 `invalid_until`). `intensity_g_kwh` is above 0 and at most 1000. Returns `{"intensity_g_kwh", "until"}`. The override lives in the service's memory, so a restart ends it.
+
+### `DELETE /v1/override`
+
+204. Returns to the curve.
+
+### `GET /healthz`
+
+`{"status":"ok"}`. Used by the probes.

@@ -12,6 +12,7 @@ airspace-live-tracker/
 │   ├── ingest/                # P2: FastAPI ingest-api (+ admin CLI for collector keys)
 │   ├── api/                   # public-api (REST, SSE, chat)
 │   ├── stream/                # P3: stream-worker
+│   ├── carbon/                # carbon-signal: the simulated grid (ADR-0006)
 │   ├── orchestrator/          # P4: Dagster definitions (jobs, schedules, assets)
 │   └── llm/                   # prompts/, eval/, shared Claude client
 ├── ml/                        # feature code, training, MODEL_CARD.md per model, notebooks/

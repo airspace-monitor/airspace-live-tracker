@@ -72,6 +72,8 @@ jobs:
             file: services/api/Dockerfile
           - service: stream
             file: services/stream/Dockerfile
+          - service: carbon
+            file: services/carbon/Dockerfile
           - service: collector
             file: collector/Dockerfile
           - service: orchestrator
@@ -126,6 +128,8 @@ jobs:
           curl -sSf --retry 10 --retry-all-errors http://127.0.0.1:30301/api/health
           bash infra/ingest-admin.sh add-collector --id ci-01 --owner ci | grep -q .
           kubectl -n airspace get hpa public-api
+          # carbon-signal is cluster-internal: reached from dagster-code by its Service name.
+          kubectl -n airspace exec deploy/dagster-code -- python -c "import urllib.request as u; print(u.urlopen('http://carbon-signal:8002/v1/intensity', timeout=10).read().decode())"
           # NodePorts listen on 127.0.0.1 only.
           ip=$(hostname -I | awk '{print $1}')
           ! curl -s -m 3 "http://$ip:30800/healthz"

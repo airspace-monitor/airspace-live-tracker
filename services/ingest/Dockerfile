@@ -6,6 +6,7 @@ ENV UV_PYTHON_DOWNLOADS=never UV_COMPILE_BYTECODE=1
 COPY pyproject.toml uv.lock .python-version ./
 COPY collector/pyproject.toml collector/pyproject.toml
 COPY services/api/pyproject.toml services/api/pyproject.toml
+COPY services/carbon/pyproject.toml services/carbon/pyproject.toml
 COPY services/orchestrator/pyproject.toml services/orchestrator/pyproject.toml
 COPY services/stream/pyproject.toml services/stream/pyproject.toml
 COPY libs libs
