@@ -22,7 +22,7 @@ serve() {  # serve <column: 2 = compose, 3 = k3s>
 }
 
 if [ "${1:-}" = "--rollback" ]; then
-  kubectl delete -k .deploy --ignore-not-found --wait=true || true
+  kubectl delete -k ../.deploy --ignore-not-found --wait=true || true
   for v in "${VOLUMES[@]}"; do
     src=/srv/airspace/$v dst=/var/lib/docker/volumes/airspace_$v/_data
     if sudo test -d "$src"; then sudo rmdir "$dst" 2>/dev/null || true; sudo mv "$src" "$dst"; fi

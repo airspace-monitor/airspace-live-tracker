@@ -28,7 +28,7 @@ main() {
 
   # The database and its storage before migrations, migrations before the new code
   # (docs/09-conventions.md#migrations).
-  kubectl apply -k infra/.deploy -l 'app in (db,storage)'
+  kubectl apply -k .deploy -l 'app in (db,storage)'
   kubectl -n "$NS" rollout status statefulset/db --timeout=10m
   kubectl -n "$NS" wait --for=condition=Ready pod/db-0 --timeout=10m
   kubectl -n "$NS" delete job migrate --ignore-not-found --wait=true
@@ -39,7 +39,7 @@ main() {
     exit 1
   fi
 
-  kubectl apply -k infra/.deploy
+  kubectl apply -k .deploy
   for d in $(kubectl -n "$NS" get deploy -o name); do
     kubectl -n "$NS" rollout status "$d" --timeout=10m
   done
@@ -63,20 +63,21 @@ build_and_import() {
   done
 }
 
-# A git-ignored overlay that pins our images to the tags just built.
+# A git-ignored overlay that pins our images to the tags just built. It sits at the repo root:
+# Kustomize refuses an overlay inside the base it builds on (a cycle).
 write_overlay() {
-  mkdir -p infra/.deploy
+  mkdir -p .deploy
   {
     echo "# Written by infra/k8s-apply.sh; not in git."
     echo "apiVersion: kustomize.config.k8s.io/v1beta1"
     echo "kind: Kustomization"
-    echo "resources: [..]"
+    echo "resources: [../infra]"
     echo "images:"
     while read -r img tag; do
       echo "  - name: $img"
       echo "    newTag: \"$tag\""
     done < /tmp/airspace-image-tags
-  } > infra/.deploy/kustomization.yaml
+  } > .deploy/kustomization.yaml
 }
 
 # Local volumes need their directory. On the VM they exist since the cutover; on a fresh node
