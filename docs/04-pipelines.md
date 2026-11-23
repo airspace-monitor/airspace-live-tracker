@@ -143,6 +143,7 @@ Every job takes an explicit `[window_start, window_end)`, writes one `ops.job_ru
 | `routes_refresh` | daily 08:30 | 28 days before today 00:00 | `raw.opensky_flights`, Zenodo Parquet | `ref.callsign_routes` |
 | `llm_briefing` | every 30 min at :01, :31 | the 30 min that just ended | facts queries ([07](07-llm.md)) | `llm.briefings` |
 | `collector_gap_check` | every 5 min | last 2 h | `ops.ingest_batches` | `core.events` |
+| `carbon_readings_record` | every 5 min | the 5 min ending at the tick | carbon-signal ([05](05-api-contract.md#carbon-signal-cluster-internal)) | `ops.carbon_readings` |
 | `dq_checks` | hourly at :20 | last hour | `raw`, `ops` | `ops.dq_results`, `core.events` |
 | `ref_refresh` | monthly, 1st at 01:00 | n/a (full reload) | OurAirports, OpenSky aircraft DB, OpenFlights, Natural Earth | `ref.*` except `callsign_routes` |
 | `train_eta` | weekly Sun 03:00 | all labelled arrivals up to Sat 00:00 | Postgres extracts via DuckDB | MLflow, `ops.model_runs` |
@@ -193,6 +194,14 @@ A gap is a run of ≥ 4 consecutive slots (`requested_at` on the collector's 90 
 - A gap that began before the window keeps its real start (the last success before the window is looked up), so every run produces the same dedupe key.
 - Misses before a collector's first success are not a gap; it has not started yet.
 - The event says the VM has no data, so it also fires when the collector works but cannot upload.
+
+### `carbon_readings_record`
+
+Stores the simulated grid's carbon intensity for the carbon-aware behaviour ([ADR-0006](adr/0006-carbon-aware-operations.md)).
+
+- Asks carbon-signal for the intensity at the window end (`GET /v1/intensity?at=`) and inserts one `ops.carbon_readings` row for that tick.
+- A replayed window keeps its first reading (`ON CONFLICT DO NOTHING`): it records what the system saw then, including a demo override that may have ended since.
+- If carbon-signal is unreachable the run fails and the tick has no reading; the next tick is independent.
 
 ### `backup`
 

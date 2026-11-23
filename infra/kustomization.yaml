@@ -16,6 +16,7 @@ resources:
   - k8s/ingest-api.yaml
   - k8s/public-api.yaml
   - k8s/stream-worker.yaml
+  - k8s/carbon-signal.yaml
   - k8s/dagster.yaml
   - k8s/grafana.yaml
 
@@ -36,6 +37,7 @@ configMapGenerator:
   - name: grafana-dashboards
     files:
       - grafana/dashboards/ops.json
+      - grafana/dashboards/sustainability.json
 
 # Our images are built and imported on the VM; deploy.sh overrides newTag with the image ID.
 images:
@@ -46,4 +48,6 @@ images:
   - name: airspace-stream
     newTag: local
   - name: airspace-orchestrator
+    newTag: local
+  - name: airspace-carbon
     newTag: local

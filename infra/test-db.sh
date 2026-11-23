@@ -195,6 +195,34 @@ RESET ROLE;
 SQL
 echo "aggregates test passed"
 
+# carbon_readings_record (MK.4): with a demo override set on carbon-signal, a run stores the
+# override; replaying the window after the override is cleared keeps the first reading.
+dc build carbon-signal
+dc up -d --wait carbon-signal
+signal() { dc exec -T carbon-signal python -c "import sys, urllib.request as u; r = u.Request('http://127.0.0.1:8002/v1/override', data=sys.argv[2].encode() or None, method=sys.argv[1], headers={'Content-Type': 'application/json'}); u.urlopen(r, timeout=5)" "$@"; }
+signal PUT '{"intensity_g_kwh": 420}'
+now_s=$(date -u +%s)
+carbon_window="{\"ops\": {\"carbon_readings_record_op\": {\"config\": {\"window_start\": \"$(date -u -d "@$((now_s - 300))" +%FT%T+00:00)\", \"window_end\": \"$(date -u -d "@$now_s" +%FT%T+00:00)\"}}}}"
+echo "$carbon_window" | dc exec -T dagster-code sh -c 'cat > /tmp/carbon_window.yaml'
+dc exec -T dagster-code dagster job execute -m orchestrator.definitions -j carbon_readings_record \
+  -c /tmp/carbon_window.yaml >/dev/null
+signal DELETE ''
+dc exec -T dagster-code dagster job execute -m orchestrator.definitions -j carbon_readings_record \
+  -c /tmp/carbon_window.yaml >/dev/null
+dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
+DO $$
+BEGIN
+  IF (SELECT array_agg((intensity_g_kwh, source)::text) FROM ops.carbon_readings)
+     IS DISTINCT FROM ARRAY['(420,override)'] THEN
+    RAISE EXCEPTION 'expected one override reading of 420';
+  END IF;
+  IF (SELECT count(*) FROM ops.job_runs WHERE job = 'carbon_readings_record' AND status = 'ok') <> 2 THEN
+    RAISE EXCEPTION 'expected two ok carbon_readings_record runs';
+  END IF;
+END $$;
+SQL
+echo "carbon_readings_record test passed"
+
 # Backup and restore drill (after the aggregates test, so agg.traffic_h3_15m has data): dump without
 # raw chunk data or continuous-aggregate data (D13), restore into a new database, compare, then
 # check that the aggregate is rebuilt once raw data is back.
@@ -240,4 +268,6 @@ dc exec -T grafana wget -q -O - http://admin:test@127.0.0.1:3000/api/datasources
   | grep -q '"status":"OK"' || { echo "grafana datasource is not healthy"; exit 1; }
 dc exec -T grafana wget -q -O - "http://admin:test@127.0.0.1:3000/api/search?query=Airspace%20ops" \
   | grep -q '"uid":"airspace-ops"' || { echo "ops dashboard not provisioned"; exit 1; }
+dc exec -T grafana wget -q -O - "http://admin:test@127.0.0.1:3000/api/search?query=Airspace%20sustainability" \
+  | grep -q '"uid":"airspace-sustainability"' || { echo "sustainability dashboard not provisioned"; exit 1; }
 echo "grafana test passed"

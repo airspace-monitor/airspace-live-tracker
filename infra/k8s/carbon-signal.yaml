@@ -1,0 +1,53 @@
+# carbon-signal, the simulated grid (docs/adr/0006-carbon-aware-operations.md). Cluster-internal
+# only (ClusterIP, no NodePort). One replica: a demo override lives in its memory.
+apiVersion: v1
+kind: Service
+metadata:
+  name: carbon-signal
+  labels:
+    app: carbon-signal
+spec:
+  selector:
+    app: carbon-signal
+  ports:
+    - name: http
+      port: 8002
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carbon-signal
+  labels:
+    app: carbon-signal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: carbon-signal
+  strategy:
+    type: Recreate  # a second replica would not share the override
+  template:
+    metadata:
+      labels:
+        app: carbon-signal
+    spec:
+      containers:
+        - name: carbon-signal
+          image: airspace-carbon
+          imagePullPolicy: Never  # built and imported on the VM by infra/deploy.sh
+          ports:
+            - name: http
+              containerPort: 8002
+          env:
+            - { name: SIGNAL_TIME_SCALE, value: "1" }
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 192Mi }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20

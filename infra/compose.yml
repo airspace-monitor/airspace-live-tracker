@@ -88,6 +88,17 @@ services:
     environment:
       DATABASE_URL: postgres://stream_worker:${STREAM_WORKER_PASSWORD:?}@db:5432/airspace?sslmode=disable
 
+  # The simulated grid (docs/adr/0006-carbon-aware-operations.md). No database and no host port:
+  # only dagster-code (and later the carbon-controller) reads it, at http://carbon-signal:8002.
+  carbon-signal:
+    image: airspace-carbon:local
+    build:
+      context: ..
+      dockerfile: services/carbon/Dockerfile
+    restart: unless-stopped
+    environment:
+      SIGNAL_TIME_SCALE: ${SIGNAL_TIME_SCALE:-1}
+
   ingest-admin:
     image: airspace-ingest:local
     profiles: [tools]

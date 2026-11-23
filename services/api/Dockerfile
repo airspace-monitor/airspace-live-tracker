@@ -7,6 +7,7 @@ COPY pyproject.toml uv.lock .python-version ./
 # Every workspace member's pyproject.toml must exist for a frozen sync.
 COPY collector/pyproject.toml collector/pyproject.toml
 COPY services/api/pyproject.toml services/api/pyproject.toml
+COPY services/carbon/pyproject.toml services/carbon/pyproject.toml
 COPY services/ingest/pyproject.toml services/ingest/pyproject.toml
 COPY services/orchestrator/pyproject.toml services/orchestrator/pyproject.toml
 COPY services/stream/pyproject.toml services/stream/pyproject.toml

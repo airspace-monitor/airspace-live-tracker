@@ -120,6 +120,13 @@ CREATE TABLE ops.stream_state (                 -- single row, seeded with -infi
   last_snapshot_time  timestamptz NOT NULL
 );
 
+CREATE TABLE ops.carbon_readings (              -- what carbon-signal reported, every 5 min (ADR-0006)
+  ts              timestamptz PRIMARY KEY,      -- the tick; a replayed tick keeps its first reading
+  intensity_g_kwh real NOT NULL CHECK (intensity_g_kwh > 0),
+  source          text NOT NULL CHECK (source IN ('curve', 'override')),
+  received_at     timestamptz NOT NULL DEFAULT now()
+);
+
 -- Views for Grafana (never expose api_key_hash)
 CREATE VIEW ops.v_collectors AS
   SELECT collector_id, owner, created_at, disabled_at FROM ops.collectors;
@@ -447,8 +454,8 @@ The chat may only query views named `llm.v_*`. Each view is documented in `db/ll
 | `airspace_owner` | dbmate migrations | Owns all schemas and tables except `agg.traffic_h3_15m` |
 | `ingest_writer` | ingest-api | SELECT on `ops.collectors`, `ops.ingest_batches`; INSERT on `raw.state_vectors`, `raw.opensky_flights`, `ops.ingest_batches` |
 | `stream_worker` | stream-worker | SELECT on `raw`, `ref`, `core`, `ml`; INSERT on `core.events`, `ml.eta_predictions`; SELECT, UPDATE on `ops.stream_state` |
-| `jobs` | orchestrator | SELECT on all schemas; INSERT, UPDATE, DELETE on `ref`, `core`, `agg.baseline_h3_how`, `ml`, `llm.briefings`, `ops.job_runs`, `ops.dq_results`, `ops.model_runs`; owns `agg.traffic_h3_15m` |
+| `jobs` | orchestrator | SELECT on all schemas; INSERT, UPDATE, DELETE on `ref`, `core`, `agg.baseline_h3_how`, `ml`, `llm.briefings`, `ops.job_runs`, `ops.dq_results`, `ops.model_runs`; INSERT on `ops.carbon_readings`; owns `agg.traffic_h3_15m` |
 | `app_reader` | public-api | SELECT on `raw`, `ref`, `core`, `agg`, `ml`, `llm`, `ops.v_collectors`, `ops.v_ingest_batches`, `ops.dq_results`; INSERT on `llm.chat_log` |
 | `llm_readonly` | public-api chat path | SELECT on `llm.v_*` only; `default_transaction_read_only = on`; `statement_timeout = 5s` (also set per transaction, [07](07-llm.md#guardrails)) |
-| `grafana_reader` | Grafana | SELECT on `ops.v_collectors`, `ops.v_ingest_batches`, `ops.job_runs`, `ops.dq_results`, `ops.model_runs`, `agg`, `core.events`; `statement_timeout = 10s` |
+| `grafana_reader` | Grafana | SELECT on `ops.v_collectors`, `ops.v_ingest_batches`, `ops.job_runs`, `ops.dq_results`, `ops.model_runs`, `ops.carbon_readings`, `agg`, `core.events`; `statement_timeout = 10s` |
 | `backup` | backup job (dagster-code) | `pg_read_all_data`: reads every database, writes nothing ([D8](11-tasks.md#decided-while-building)) |

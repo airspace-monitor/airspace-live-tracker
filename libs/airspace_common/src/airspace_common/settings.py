@@ -1,9 +1,10 @@
 """Configuration for every service, read from environment variables and `.env` in the working
 directory. Every variable is documented in `.env.example`."""
 
+from datetime import UTC, datetime
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -85,3 +86,17 @@ class JobsSettings(BaseSettings):
 
     jobs_password: SecretStr
     jobs_db_host: str = "db"
+    # carbon-signal, cluster-internal (docs/adr/0006-carbon-aware-operations.md).
+    carbon_signal_url: str = "http://carbon-signal:8002"
+
+
+class CarbonSignalSettings(BaseSettings):
+    """carbon-signal, the simulated grid (docs/adr/0006-carbon-aware-operations.md). No database."""
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    # > 1 speeds up the simulated clock for a demo (60: one simulated day in 24 minutes).
+    signal_time_scale: float = Field(default=1.0, gt=0)
+    signal_seed: int = 2026
+    # Where a sped-up clock starts; real and simulated time agree at this instant.
+    signal_epoch: datetime = datetime(2026, 11, 23, tzinfo=UTC)
