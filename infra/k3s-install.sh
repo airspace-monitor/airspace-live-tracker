@@ -19,9 +19,13 @@ if command -v netfilter-persistent >/dev/null; then sudo netfilter-persistent sa
 
 # Traefik and ServiceLB are off: nothing is published to the internet. NodePorts listen on
 # 127.0.0.1 only, and `tailscale serve` publishes them to the tailnet (infra/k3s-cutover.sh).
+# The kubeconfig is readable by the deploying user's group: on the VM `kubectl` is k3s's own,
+# which reads /etc/rancher/k3s/k3s.yaml rather than ~/.kube/config.
 sudo install -d -m 755 /etc/rancher/k3s
-sudo tee /etc/rancher/k3s/config.yaml >/dev/null <<EOF
-write-kubeconfig-mode: "0600"
+config=$(mktemp)
+cat > "$config" <<EOF
+write-kubeconfig-mode: "0640"
+write-kubeconfig-group: $(id -gn)
 cluster-cidr: $POD_CIDR
 service-cidr: $SERVICE_CIDR
 disable:
@@ -33,10 +37,16 @@ kube-proxy-arg:
   - nodeport-addresses=127.0.0.0/8
 secrets-encryption: true
 EOF
+changed=false
+sudo cmp -s "$config" /etc/rancher/k3s/config.yaml || changed=true
+sudo install -m 644 "$config" /etc/rancher/k3s/config.yaml
+rm -f "$config"
 
 if ! k3s --version 2>/dev/null | grep -q "${K3S_VERSION}"; then
   # The official installer verifies the binary's checksum; the version is pinned.
   curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="$K3S_VERSION" sh -
+elif $changed; then
+  sudo systemctl restart k3s  # a changed config.yaml only applies on restart
 fi
 # The node object appears a few seconds after k3s starts; `wait` fails if there is none yet.
 for _ in $(seq 60); do
