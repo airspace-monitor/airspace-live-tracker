@@ -1,6 +1,8 @@
 import type { EventSeverity } from '../../api/types'
 import { useEvents } from '../../api/queries'
 import { formatEventKind, formatUtcTime } from '../../lib/format'
+import { squawkCodeFromKind } from '../../lib/squawks'
+import { SquawkCode } from '../SquawkCode'
 
 const SEVERITY_STYLES: Record<EventSeverity, string> = {
   info: 'border-border text-muted',
@@ -50,6 +52,7 @@ export function EventsPanel() {
             const detail = [event.icao24?.toUpperCase(), event.airport_icao]
               .filter((value): value is string => Boolean(value))
               .join(' · ')
+            const squawk = squawkCodeFromKind(event.kind)
             return (
               <li key={event.event_id} className="py-2.5">
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider">
@@ -58,7 +61,15 @@ export function EventsPanel() {
                   >
                     {event.severity}
                   </span>
-                  <span className="truncate text-muted">{formatEventKind(event.kind)}</span>
+                  <span className="truncate text-muted">
+                    {squawk ? (
+                      <>
+                        squawk <SquawkCode code={squawk} />
+                      </>
+                    ) : (
+                      formatEventKind(event.kind)
+                    )}
+                  </span>
                   <time dateTime={event.ts} className="ml-auto shrink-0 font-mono text-muted">
                     {formatUtcTime(event.ts)}
                   </time>
