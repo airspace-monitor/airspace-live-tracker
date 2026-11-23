@@ -112,6 +112,8 @@ jobs:
         if: failure()
         run: |
           kubectl -n airspace get all,pvc,events -o wide || true
+          kubectl -n airspace describe pod db-0 | sed -n "/Last State/,/Ready/p" || true
           for p in $(kubectl -n airspace get pods -o name); do
             echo "== $p"; kubectl -n airspace logs "$p" --all-containers --tail=50 || true
+            echo "== $p (previous container)"; kubectl -n airspace logs "$p" --all-containers --previous --tail=80 || true
           done

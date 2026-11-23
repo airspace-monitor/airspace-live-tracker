@@ -73,8 +73,10 @@ spec:
             requests: { cpu: 500m, memory: 2Gi }
             limits: { memory: 6Gi }
           readinessProbe:
+            # Over TCP: the first-run init server listens on the socket only, so a socket check
+            # would mark the pod ready (and start migrations) before Postgres takes connections.
             exec:
-              command: [sh, -c, "psql -U postgres -d airspace -c 'SELECT 1' >/dev/null"]
+              command: [sh, -c, "PGPASSWORD=\"$POSTGRES_PASSWORD\" psql -h 127.0.0.1 -U postgres -d airspace -c 'SELECT 1' >/dev/null"]
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
