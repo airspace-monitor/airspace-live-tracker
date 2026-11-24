@@ -18,8 +18,8 @@ import { AltitudeLegend } from './AltitudeLegend'
 export default function MapPane() {
   const containerRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<MapboxOverlay | null>(null)
+  const mapRef = useRef<MapLibreMap | null>(null)
   const aircraftRef = useRef<Aircraft[]>([])
-  const hoveredRef = useRef<string | null>(null)
   const { data } = useLiveSnapshot()
   const [selected, setSelected] = useState<Aircraft | null>(null)
 
@@ -31,7 +31,14 @@ export default function MapPane() {
   const applyAircraft = useCallback(() => {
     const overlay = overlayRef.current
     if (!overlay) return
-    overlay.setProps({ layers: [aircraftLayer(aircraftRef.current, hoveredRef.current)] })
+    overlay.setProps({
+      layers: [
+        aircraftLayer(aircraftRef.current, (icao24) => {
+          const map = mapRef.current
+          if (map) map.getCanvasContainer().style.cursor = icao24 ? 'pointer' : ''
+        }),
+      ],
+    })
   }, [])
 
   // The query usually resolves after the map effect. Keep the latest rows in a ref and
@@ -67,6 +74,7 @@ export default function MapPane() {
       renderWorldCopies: false,
     })
     map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
+    mapRef.current = map
 
     const overlay = new MapboxOverlay({
       interleaved: false,
@@ -76,45 +84,6 @@ export default function MapPane() {
     map.addControl(overlay as unknown as IControl)
     overlayRef.current = overlay
     applyAircraft()
-
-    // Hover is picked only after the pointer pauses briefly. This keeps the
-    // accent colour without deck.gl picking over 12k icons on every move.
-    let hoverTimer: number | null = null
-    let hoverPoint: { x: number; y: number } | null = null
-
-    const clearHover = () => {
-      if (hoverTimer !== null) {
-        window.clearTimeout(hoverTimer)
-        hoverTimer = null
-      }
-      hoverPoint = null
-      if (hoveredRef.current !== null) {
-        hoveredRef.current = null
-        applyAircraft()
-        map.getCanvasContainer().style.cursor = ''
-      }
-    }
-
-    const onMouseMove = (event: MapMouseEvent) => {
-      if (map.isMoving()) return
-      hoverPoint = { x: event.point.x, y: event.point.y }
-      if (hoverTimer !== null) window.clearTimeout(hoverTimer)
-      hoverTimer = window.setTimeout(() => {
-        hoverTimer = null
-        if (!hoverPoint) return
-        const picked = overlay.pickObject({
-          x: hoverPoint.x,
-          y: hoverPoint.y,
-          radius: 10,
-          layerIds: ['aircraft'],
-        })
-        const icao24 = (picked?.object as Aircraft | undefined)?.icao24 ?? null
-        if (icao24 === hoveredRef.current) return
-        hoveredRef.current = icao24
-        applyAircraft()
-        map.getCanvasContainer().style.cursor = icao24 ? 'pointer' : ''
-      }, 70)
-    }
 
     const onClick = (event: MapMouseEvent) => {
       const picked = overlay.pickObject({
@@ -126,17 +95,12 @@ export default function MapPane() {
       setSelected((picked?.object as Aircraft | undefined) ?? null)
     }
 
-    map.on('mousemove', onMouseMove)
-    map.on('mouseout', clearHover)
-    map.on('movestart', clearHover)
     map.on('click', onClick)
 
     return () => {
-      clearHover()
-      map.off('mousemove', onMouseMove)
-      map.off('mouseout', clearHover)
-      map.off('movestart', clearHover)
       map.off('click', onClick)
+      map.getCanvasContainer().style.cursor = ''
+      mapRef.current = null
       overlayRef.current = null
       map.remove()
     }
