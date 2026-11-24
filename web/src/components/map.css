@@ -1,0 +1,9 @@
+/*
+ * MapLibre ships `.maplibregl-canvas-container.maplibregl-interactive` with
+ * `cursor: grab` and `:active` with `grabbing`. This project wants the normal
+ * arrow over the map, so override both after maplibre-gl.css is loaded.
+ */
+.maplibregl-canvas-container.maplibregl-interactive,
+.maplibregl-canvas-container.maplibregl-interactive:active {
+  cursor: default;
+}

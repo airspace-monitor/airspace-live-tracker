@@ -4,8 +4,8 @@ import { API_BASE } from '../api/client'
 
 /**
  * Keeps the REST queries fresh from the SSE stream (docs/08-frontend.md#data-flow).
- * EventSource reconnects on its own; every open or snapshot_ready refreshes `/stats`.
- * The map consumes the same stream in M2.5; this hook only wires the header.
+ * EventSource reconnects on its own; every open or snapshot_ready refreshes the
+ * header stats and the map snapshot.
  */
 export function useLiveStream(): void {
   const queryClient = useQueryClient()
@@ -14,6 +14,7 @@ export function useLiveStream(): void {
     const source = new EventSource(`${API_BASE}/live/stream`)
     const refresh = () => {
       void queryClient.invalidateQueries({ queryKey: ['stats'] })
+      void queryClient.invalidateQueries({ queryKey: ['snapshot'] })
     }
 
     source.addEventListener('snapshot_ready', refresh)

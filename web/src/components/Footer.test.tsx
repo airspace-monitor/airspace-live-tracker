@@ -7,7 +7,7 @@ describe('Footer', () => {
     render(<Footer />)
 
     expect(screen.getByText('The OpenSky Network')).toBeInTheDocument()
-    expect(screen.getByText('CARTO')).toBeInTheDocument()
+    expect(screen.getByText(/CARTO|OpenFreeMap/)).toBeInTheDocument()
     expect(screen.getByText('OpenStreetMap')).toBeInTheDocument()
   })
 })

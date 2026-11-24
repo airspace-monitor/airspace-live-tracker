@@ -6,7 +6,7 @@ The interactive mockup (mock data, design reference) is linked in [10 Roadmap](1
 
 React 19 + TypeScript (strict) + Vite, MapLibre GL JS (basemap), deck.gl via `MapboxOverlay` (data layers), TanStack Query (REST), native `EventSource` (SSE), Tailwind CSS. Node 24 LTS, pnpm. Hosted on Cloudflare Pages.
 
-Basemap: CARTO *Dark Matter* (free for non-commercial use, with attribution). Self-hosted Protomaps PMTiles is a stretch item.
+Basemap: CARTO *Dark Matter* when `VITE_CARTO_KEY` is configured (Q5); without a key, `web/` falls back to OpenFreeMap *Dark*. Both require OpenStreetMap attribution, and the footer switches with the basemap. Self-hosted Protomaps PMTiles is a stretch item.
 
 ## Layout
 
@@ -38,7 +38,7 @@ At widths under 900 px the side panel becomes a bottom sheet. The attribution fo
 
 | Layer | deck.gl class | Data | Notes |
 |---|---|---|---|
-| Aircraft | `IconLayer` | `/live/snapshot` | Plane glyph rotated by `track_deg`, coloured by altitude band, pickable |
+| Aircraft | `IconLayer` | `/live/snapshot` | Plane glyph rotated by `track_deg`, coloured by altitude band, pickable. Hover tints it `--accent` and shows a pointer; click opens the card |
 | Selected trail | `PathLayer` | `/aircraft/{icao24}/track` | Altitude-band colour per segment |
 | Anomaly heatmap | `H3HexagonLayer` | `/anomalies` | Fill `--anom-high` / `--anom-low`; opacity `min(0.15 + 0.1·|z|, 0.6)`; non-persistent cells drawn with a dashed outline |
 | Airports | `ScatterplotLayer` + `TextLayer` | static `airports.json` built from `ref.airports` | Target airports labelled |

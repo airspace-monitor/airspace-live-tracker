@@ -30,3 +30,21 @@ export function formatUtcTime(iso: string): string {
 export function formatEventKind(kind: string): string {
   return kind.replaceAll('_', ' ')
 }
+
+const FT_PER_M = 3.280839895
+const KT_PER_MS = 1.943844492
+const FPM_PER_MS = 196.8503937
+
+export function formatFeet(altM: number | null): string {
+  return altM === null ? '—' : `${countFormat.format(Math.round(altM * FT_PER_M))} ft`
+}
+
+export function formatKnots(velMs: number | null): string {
+  return velMs === null ? '—' : `${countFormat.format(Math.round(velMs * KT_PER_MS))} kt`
+}
+
+export function formatVerticalRate(vrateMs: number | null): string {
+  if (vrateMs === null) return '—'
+  const fpm = Math.round(vrateMs * FPM_PER_MS)
+  return `${fpm > 0 ? '+' : ''}${countFormat.format(fpm)} fpm`
+}

@@ -1,30 +1,122 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Map as MapLibreMap,
+  NavigationControl,
+  type IControl,
+  type MapMouseEvent,
+} from 'maplibre-gl'
+import { MapboxOverlay } from '@deck.gl/mapbox'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import './map.css'
+import { useLiveSnapshot } from '../api/queries'
+import { MAP_STYLE } from '../lib/basemap'
+import { parseAircraft, type Aircraft } from '../lib/aircraft'
+import { aircraftLayer } from '../map/aircraftLayer'
+import { AircraftCard } from './AircraftCard'
 import { AltitudeLegend } from './AltitudeLegend'
 
-/**
- * Placeholder for the real map (M2.5). Kept in its own module so it stays a lazy
- * chunk: MapLibre + deck.gl must not enter the app shell bundle.
- */
 export default function MapPane() {
-  return (
-    <div className="relative h-full w-full overflow-hidden bg-bg">
-      <div
-        className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,#151d33_0%,#0b1020_70%)]"
-        aria-hidden="true"
-      />
-      <div className="map-grid absolute inset-0 opacity-50" aria-hidden="true" />
+  const containerRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<MapboxOverlay | null>(null)
+  const mapRef = useRef<MapLibreMap | null>(null)
+  const aircraftRef = useRef<Aircraft[]>([])
+  const { data } = useLiveSnapshot()
+  const [selected, setSelected] = useState<Aircraft | null>(null)
 
-      <div className="absolute left-3 top-3 rounded border border-border bg-panel/80 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted">
+  const aircraft = useMemo(() => (data ? parseAircraft(data) : []), [data])
+  const liveSelected = selected
+    ? (aircraft.find((row) => row.icao24 === selected.icao24) ?? selected)
+    : null
+
+  const applyAircraft = useCallback(() => {
+    const overlay = overlayRef.current
+    if (!overlay) return
+    overlay.setProps({
+      layers: [
+        aircraftLayer(aircraftRef.current, (icao24) => {
+          const map = mapRef.current
+          if (map) map.getCanvasContainer().style.cursor = icao24 ? 'pointer' : ''
+        }),
+      ],
+    })
+  }, [])
+
+  // The query usually resolves after the map effect. Keep the latest rows in a ref and
+  // apply them whenever either side becomes ready.
+  useEffect(() => {
+    aircraftRef.current = aircraft
+    applyAircraft()
+  }, [aircraft, applyAircraft])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelected(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    // Cap the backing store: 2x-3x displays spend 2-4x the fragments for little map detail.
+    const pixelRatio = Math.min(window.devicePixelRatio, 1.5)
+
+    const map = new MapLibreMap({
+      container,
+      style: MAP_STYLE,
+      center: [16.37, 48.21],
+      zoom: 4.2,
+      attributionControl: false,
+      pixelRatio,
+      fadeDuration: 0,
+      renderWorldCopies: false,
+    })
+    map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
+    mapRef.current = map
+
+    const overlay = new MapboxOverlay({
+      interleaved: false,
+      useDevicePixels: pixelRatio,
+      layers: [],
+    })
+    map.addControl(overlay as unknown as IControl)
+    overlayRef.current = overlay
+    applyAircraft()
+
+    const onClick = (event: MapMouseEvent) => {
+      const picked = overlay.pickObject({
+        x: event.point.x,
+        y: event.point.y,
+        radius: 10,
+        layerIds: ['aircraft'],
+      })
+      setSelected((picked?.object as Aircraft | undefined) ?? null)
+    }
+
+    map.on('click', onClick)
+
+    return () => {
+      map.off('click', onClick)
+      map.getCanvasContainer().style.cursor = ''
+      mapRef.current = null
+      overlayRef.current = null
+      map.remove()
+    }
+  }, [applyAircraft])
+
+  return (
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+
+      <div className="pointer-events-none absolute left-3 top-3 z-20 rounded border border-border bg-panel px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted">
         Europe · zoom 4
       </div>
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
-        <span className="rounded-full border border-border bg-panel/80 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
-          Live map · M2.5
-        </span>
-        <p className="max-w-xs text-sm text-muted">
-          Aircraft positions, altitude colours and smooth motion arrive in the next milestone.
-        </p>
-      </div>
+      {liveSelected ? (
+        <AircraftCard aircraft={liveSelected} onClose={() => setSelected(null)} />
+      ) : null}
 
       <AltitudeLegend />
     </div>
