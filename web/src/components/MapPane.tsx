@@ -52,16 +52,26 @@ export default function MapPane() {
     const container = containerRef.current
     if (!container) return
 
+    // Cap the backing store: 2x-3x displays spend 2-4x the fragments for little map detail.
+    const pixelRatio = Math.min(window.devicePixelRatio, 1.5)
+
     const map = new MapLibreMap({
       container,
       style: MAP_STYLE,
       center: [16.37, 48.21],
       zoom: 4.2,
       attributionControl: false,
+      pixelRatio,
+      fadeDuration: 0,
+      renderWorldCopies: false,
     })
     map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
 
-    const overlay = new MapboxOverlay({ interleaved: false, layers: [] })
+    const overlay = new MapboxOverlay({
+      interleaved: false,
+      useDevicePixels: pixelRatio,
+      layers: [],
+    })
     map.addControl(overlay as unknown as IControl)
     overlayRef.current = overlay
     applyAircraft()

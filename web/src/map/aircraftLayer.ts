@@ -20,7 +20,5 @@ export function aircraftLayer(aircraft: Aircraft[]) {
     getColor: (d) => altitudeColor(d.alt_m, d.on_ground, d.pos_age_s),
     getAngle: (d) => d.track_deg ?? 0,
     pickable: true,
-    autoHighlight: true,
-    highlightColor: [76, 195, 255, 160],
   })
 }
