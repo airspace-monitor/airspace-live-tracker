@@ -24,5 +24,10 @@ export function aircraftLayer(aircraft: Aircraft[], hoveredIcao24: string | null
         : altitudeColor(d.alt_m, d.on_ground, d.pos_age_s),
     getAngle: (d) => d.track_deg ?? 0,
     pickable: true,
+    // External state changes must invalidate deck.gl's accessor buffers.
+    updateTriggers: {
+      getColor: [hoveredIcao24],
+      getSize: [hoveredIcao24],
+    },
   })
 }
