@@ -7,6 +7,7 @@ import {
 } from 'maplibre-gl'
 import { MapboxOverlay } from '@deck.gl/mapbox'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import './map.css'
 import { useLiveSnapshot } from '../api/queries'
 import { MAP_STYLE } from '../lib/basemap'
 import { parseAircraft, type Aircraft } from '../lib/aircraft'
