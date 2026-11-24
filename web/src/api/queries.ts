@@ -1,7 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { EVENTS_LIMIT, STATS_REFETCH_MS } from '../lib/config'
 import { getJson } from './client'
-import type { EventsPage, Stats } from './types'
+import type { EventsPage, Snapshot, Stats } from './types'
+
+export function useLiveSnapshot() {
+  return useQuery({
+    queryKey: ['snapshot'],
+    queryFn: ({ signal }) => getJson<Snapshot>('/live/snapshot', signal),
+    refetchInterval: 90_000,
+    staleTime: 60_000,
+  })
+}
 
 export function useStats() {
   return useQuery({

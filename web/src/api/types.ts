@@ -8,6 +8,16 @@ export interface Stats {
   dq_status: string | null
 }
 
+export type SnapshotValue = string | number | boolean | null
+
+/** One live snapshot; `states` is column-oriented via `fields` (docs/05-api-contract.md). */
+export interface Snapshot {
+  snapshot_time: string
+  next_expected_at: string
+  fields: string[]
+  states: SnapshotValue[][]
+}
+
 export type EventSeverity = 'info' | 'warn' | 'alert'
 
 export interface EventRow {
