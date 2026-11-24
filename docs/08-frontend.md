@@ -38,7 +38,7 @@ At widths under 900 px the side panel becomes a bottom sheet. The attribution fo
 
 | Layer | deck.gl class | Data | Notes |
 |---|---|---|---|
-| Aircraft | `IconLayer` | `/live/snapshot` | Plane glyph rotated by `track_deg`, coloured by altitude band, pickable |
+| Aircraft | `IconLayer` | `/live/snapshot` | Plane glyph rotated by `track_deg`, coloured by altitude band, pickable. Hover tints it `--accent` and shows a pointer; click opens the card |
 | Selected trail | `PathLayer` | `/aircraft/{icao24}/track` | Altitude-band colour per segment |
 | Anomaly heatmap | `H3HexagonLayer` | `/anomalies` | Fill `--anom-high` / `--anom-low`; opacity `min(0.15 + 0.1·|z|, 0.6)`; non-persistent cells drawn with a dashed outline |
 | Airports | `ScatterplotLayer` + `TextLayer` | static `airports.json` built from `ref.airports` | Target airports labelled |
