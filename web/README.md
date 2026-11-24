@@ -36,6 +36,20 @@ running `public-api`).
 The production app will call `https://api.<domain>/api/v1` through Cloudflare;
 CORS is added there in M2.8.
 
+## Basemap
+
+CARTO Dark Matter is the target basemap. Put `VITE_CARTO_KEY` in `web/.env`
+(git-ignored) to use it:
+
+```dotenv
+VITE_CARTO_KEY=your-key
+```
+
+Without a key the app falls back to OpenFreeMap Dark, so development still
+works. Never commit the key; set it in the Cloudflare Pages environment for
+production, and restrict it in the CARTO dashboard. The footer attribution
+switches between CARTO and OpenFreeMap automatically.
+
 ## Scope
 
 `docs/08-frontend.md` is the visual and behavioural spec. M2.4 is the shell

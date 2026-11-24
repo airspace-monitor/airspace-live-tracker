@@ -11,6 +11,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+    // MapLibre creates its worker from a URL next to its module; pre-bundling breaks it.
+    optimizeDeps: { exclude: ['maplibre-gl'] },
     server: {
       proxy: {
         '/api': { target: proxyTarget, changeOrigin: true },

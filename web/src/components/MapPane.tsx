@@ -1,28 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import {
-  Map as MapLibreMap,
-  NavigationControl,
-  type IControl,
-  type StyleSpecification,
-} from 'maplibre-gl'
+import { Map as MapLibreMap, NavigationControl, type IControl } from 'maplibre-gl'
 import { MapboxOverlay } from '@deck.gl/mapbox'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useLiveSnapshot } from '../api/queries'
+import { MAP_STYLE } from '../lib/basemap'
 import { parseAircraft, type Aircraft } from '../lib/aircraft'
 import { aircraftLayer } from '../map/aircraftLayer'
 import { AltitudeLegend } from './AltitudeLegend'
-
-const STYLE: StyleSpecification = {
-  version: 8,
-  sources: {},
-  layers: [
-    {
-      id: 'background',
-      type: 'background',
-      paint: { 'background-color': '#0b1020' },
-    },
-  ],
-}
 
 export default function MapPane() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -51,7 +35,7 @@ export default function MapPane() {
 
     const map = new MapLibreMap({
       container,
-      style: STYLE,
+      style: MAP_STYLE,
       center: [16.37, 48.21],
       zoom: 4.2,
       attributionControl: false,
