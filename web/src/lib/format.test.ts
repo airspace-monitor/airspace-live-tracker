@@ -3,7 +3,10 @@ import {
   formatAge,
   formatCount,
   formatEventKind,
+  formatFeet,
+  formatKnots,
   formatUtcTime,
+  formatVerticalRate,
   snapshotAgeSeconds,
 } from './format'
 
@@ -55,5 +58,21 @@ describe('formatUtcTime', () => {
 describe('formatEventKind', () => {
   it('humanises snake_case kinds', () => {
     expect(formatEventKind('collector_gap')).toBe('collector gap')
+  })
+})
+
+describe('aircraft units', () => {
+  it('converts SI to feet, knots and feet per minute', () => {
+    expect(formatFeet(10000)).toBe('32,808 ft')
+    expect(formatKnots(200)).toBe('389 kt')
+    expect(formatVerticalRate(5)).toBe('+984 fpm')
+    expect(formatVerticalRate(-5)).toBe('-984 fpm')
+    expect(formatVerticalRate(0)).toBe('0 fpm')
+  })
+
+  it('shows an em dash for missing values', () => {
+    expect(formatFeet(null)).toBe('—')
+    expect(formatKnots(null)).toBe('—')
+    expect(formatVerticalRate(null)).toBe('—')
   })
 })

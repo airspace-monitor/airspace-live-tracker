@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { Map as MapLibreMap, NavigationControl, type IControl } from 'maplibre-gl'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Map as MapLibreMap,
+  NavigationControl,
+  type IControl,
+  type MapMouseEvent,
+} from 'maplibre-gl'
 import { MapboxOverlay } from '@deck.gl/mapbox'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useLiveSnapshot } from '../api/queries'
 import { MAP_STYLE } from '../lib/basemap'
 import { parseAircraft, type Aircraft } from '../lib/aircraft'
 import { aircraftLayer } from '../map/aircraftLayer'
+import { AircraftCard } from './AircraftCard'
 import { AltitudeLegend } from './AltitudeLegend'
 
 export default function MapPane() {
@@ -13,8 +19,12 @@ export default function MapPane() {
   const overlayRef = useRef<MapboxOverlay | null>(null)
   const aircraftRef = useRef<Aircraft[]>([])
   const { data } = useLiveSnapshot()
+  const [selected, setSelected] = useState<Aircraft | null>(null)
 
   const aircraft = useMemo(() => (data ? parseAircraft(data) : []), [data])
+  const liveSelected = selected
+    ? (aircraft.find((row) => row.icao24 === selected.icao24) ?? selected)
+    : null
 
   const applyAircraft = useCallback(() => {
     const overlay = overlayRef.current
@@ -28,6 +38,14 @@ export default function MapPane() {
     aircraftRef.current = aircraft
     applyAircraft()
   }, [aircraft, applyAircraft])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelected(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   useEffect(() => {
     const container = containerRef.current
@@ -47,7 +65,19 @@ export default function MapPane() {
     overlayRef.current = overlay
     applyAircraft()
 
+    const onClick = (event: MapMouseEvent) => {
+      const picked = overlay.pickObject({
+        x: event.point.x,
+        y: event.point.y,
+        radius: 10,
+        layerIds: ['aircraft'],
+      })
+      setSelected((picked?.object as Aircraft | undefined) ?? null)
+    }
+    map.on('click', onClick)
+
     return () => {
+      map.off('click', onClick)
       overlayRef.current = null
       map.remove()
     }
@@ -60,6 +90,10 @@ export default function MapPane() {
       <div className="pointer-events-none absolute left-3 top-3 z-20 rounded border border-border bg-panel px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-muted">
         Europe · zoom 4
       </div>
+
+      {liveSelected ? (
+        <AircraftCard aircraft={liveSelected} onClose={() => setSelected(null)} />
+      ) : null}
 
       <AltitudeLegend />
     </div>
