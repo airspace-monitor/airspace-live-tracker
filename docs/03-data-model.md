@@ -250,7 +250,7 @@ CREATE TABLE ref.callsign_routes (              -- route lookup: P(destination |
   n_flights   integer NOT NULL,
   share       real NOT NULL,                    -- n_flights / all flights of this callsign in the window
   last_seen   date NOT NULL,
-  source      text NOT NULL CHECK (source IN ('opensky', 'zenodo')),
+  source      text NOT NULL CHECK (source IN ('opensky', 'zenodo')),  -- only 'opensky' is written (D17)
   PRIMARY KEY (callsign, destination)
 );
 ```

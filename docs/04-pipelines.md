@@ -140,7 +140,7 @@ Every job takes an explicit `[window_start, window_end)`, writes one `ops.job_ru
 | `agg_backfill_refresh` | hourly at :10 | batches received since the last successful run; refreshes the days they touch | `ops.ingest_batches` | `agg.traffic_h3_15m` |
 | `baseline_recompute` | daily 02:00 | 28 days before today 00:00 | `agg.traffic_h3_15m`, `agg.coverage_15m` | `agg.baseline_h3_how` |
 | `flight_labels_merge` | daily 08:00 | yesterday | `raw.opensky_flights`, `core.flights` | `core.flights` |
-| `routes_refresh` | daily 08:30 | 28 days before today 00:00 | `raw.opensky_flights`, Zenodo Parquet | `ref.callsign_routes` |
+| `routes_refresh` | daily 08:30 | 28 days before today 00:00 | `raw.opensky_flights` | `ref.callsign_routes` |
 | `llm_briefing` | every 30 min at :01, :31 | the 30 min that just ended | facts queries ([07](07-llm.md)) | `llm.briefings` |
 | `collector_gap_check` | every 5 min | last 2 h | `ops.ingest_batches` | `core.events` |
 | `carbon_readings_record` | every 5 min | the 5 min ending at the tick | carbon-signal ([05](05-api-contract.md#carbon-signal-cluster-internal)) | `ops.carbon_readings` |
@@ -170,6 +170,14 @@ For each finalized `core.flights` row whose `first_seen` is in the window, find 
 - A NULL estimate leaves the current value alone; a non-NULL one replaces an earlier `opensky` value.
 - The window is yesterday because the collector fetches yesterday's flight lists at 06:00. A run that finds no list (late upload) labels nothing and can be re-run by hand for that day.
 - `rows_out` is the number of flights whose labels changed, so a replay records 0.
+
+### `routes_refresh`
+
+Rebuilds `ref.callsign_routes` from the window's `raw.opensky_flights` rows with a callsign and a non-NULL `est_arr_icao` ([D17](11-tasks.md#decided-while-building)).
+
+- One row per (callsign, `est_arr_icao`): `n_flights`, `share` = `n_flights` / the callsign's flights with an arrival estimate (so a callsign's shares sum to 1), `last_seen` = the UTC date of its latest `first_seen`, `source = 'opensky'`.
+- The table is replaced in one transaction (delete, insert). A rebuild with under half the stored rows is refused, as in `ref_refresh`: it means missing flight lists, not new routes.
+- `rows_out` is the number of routes.
 
 ### `anomaly_scoring`
 

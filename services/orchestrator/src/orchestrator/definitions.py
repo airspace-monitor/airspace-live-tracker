@@ -13,6 +13,7 @@ from orchestrator.gaps import collector_gap_check, collector_gap_check_schedule
 from orchestrator.labels import flight_labels_merge, flight_labels_merge_schedule
 from orchestrator.metar import metar_fetch, metar_fetch_schedule
 from orchestrator.ref_refresh import ref_refresh, ref_refresh_schedule
+from orchestrator.routes import routes_refresh, routes_refresh_schedule
 from orchestrator.sessionizer import flights_sessionizer, flights_sessionizer_schedule
 
 defs = Definitions(
@@ -25,6 +26,7 @@ defs = Definitions(
         flights_sessionizer,
         metar_fetch,
         ref_refresh,
+        routes_refresh,
     ],
     schedules=[
         agg_backfill_refresh_schedule,
@@ -35,5 +37,6 @@ defs = Definitions(
         flights_sessionizer_schedule,
         metar_fetch_schedule,
         ref_refresh_schedule,
+        routes_refresh_schedule,
     ],
 )
