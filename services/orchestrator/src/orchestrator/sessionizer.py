@@ -122,14 +122,18 @@ def stale_active(conn: psycopg.Connection, before: datetime) -> list[Flight]:
 
 
 def last_points(conn: psycopg.Connection, flights: list[Flight]) -> dict[uuid.UUID, Point]:
+    """Each flight's point at its `last_seen`. The explicit time range lets TimescaleDB skip every
+    other chunk; joined values alone made it probe all of them, compressed ones included."""
     if not flights:
         return {}
+    seen = [f.last_seen for f in flights]
     rows = conn.execute(
         f"SELECT s.icao24, {', '.join('s.' + c.strip() for c in POINT_COLS.split(','))}"
         " FROM raw.state_vectors s"
         " JOIN unnest(%s::text[], %s::timestamptz[]) AS k(icao24, t)"
-        " ON s.icao24 = k.icao24 AND s.snapshot_time = k.t",
-        ([f.icao24 for f in flights], [f.last_seen for f in flights]),
+        " ON s.icao24 = k.icao24 AND s.snapshot_time = k.t"
+        " WHERE s.snapshot_time >= %s AND s.snapshot_time <= %s",
+        ([f.icao24 for f in flights], seen, min(seen), max(seen)),
     ).fetchall()
     found = {(r[0], r[1]): _point(r[1:]) for r in rows}
     return {
