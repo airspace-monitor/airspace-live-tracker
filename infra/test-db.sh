@@ -321,6 +321,56 @@ END $$;
 SQL
 echo "metar_fetch test passed"
 
+# flights_sessionizer (M3.3) on a past window, so the watermark (~ now - 10 min) closes and
+# finalises everything. Every 90 s from 08:00: f00001 cruises far away until 08:10 (lost);
+# f00002 approaches LOWW, lands at 08:07:30 and taxis until 08:12 (completed, observed arrival);
+# f00003 only sits on the ground at LZIB (no flight, D16); f00004 waits at LOWW and takes off at
+# 08:21:00 (observed departure). Replaying the window writes nothing.
+dc exec -T db psql -U postgres -d airspace -q -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO raw.state_vectors (snapshot_time, icao24, batch_id, time_position, lat, lon,
+                               baro_altitude_m, on_ground, callsign)
+SELECT t, p.icao24, '00000000-0000-7000-8000-0000000000f1', t, p.lat, p.lon, p.alt, p.ground, p.callsign
+FROM generate_series(timestamptz '2026-10-29 08:00Z', '2026-10-29 08:28:30Z', interval '90 seconds') t
+CROSS JOIN LATERAL (VALUES
+  ('f00001', 50.0, 10.0, 11000::real, false, 'DLH1', t <= '2026-10-29 08:10Z'),
+  ('f00002', 48.11, 16.57, CASE WHEN t < '2026-10-29 08:07:30Z' THEN 800 END, t >= '2026-10-29 08:07:30Z', 'AUA2',
+   t <= '2026-10-29 08:12Z'),
+  ('f00003', 48.17, 17.21, NULL, true, NULL, true),
+  ('f00004', 48.11, 16.57, CASE WHEN t >= '2026-10-29 08:21Z' THEN 1500 END, t < '2026-10-29 08:21Z', 'AUA4', true)
+) AS p(icao24, lat, lon, alt, ground, callsign, keep)
+WHERE p.keep;
+SQL
+flights_window='{"ops": {"flights_sessionizer_op": {"config": {"window_start": "2026-10-29T08:00:00+00:00", "window_end": "2026-10-29T08:30:00+00:00"}}}}'
+echo "$flights_window" | dc exec -T dagster-code sh -c 'cat > /tmp/flights_window.yaml'
+for _ in 1 2; do
+  dc exec -T dagster-code dagster job execute -m orchestrator.definitions -j flights_sessionizer \
+    -c /tmp/flights_window.yaml >/dev/null
+done
+dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
+DO $$
+BEGIN
+  IF (SELECT array_agg((icao24, status, finalized, dep_icao, arr_icao, arrival_method)::text ORDER BY icao24)
+      FROM core.flights WHERE icao24 LIKE 'f0000%') IS DISTINCT FROM ARRAY[
+       '(f00001,lost,t,,,)', '(f00002,completed,t,,LOWW,on_ground)', '(f00004,lost,t,LOWW,,)'] THEN
+    RAISE EXCEPTION 'unexpected flights: %', (SELECT array_agg((icao24, status, finalized, dep_icao, arr_icao,
+      arrival_method)::text ORDER BY icao24) FROM core.flights WHERE icao24 LIKE 'f0000%');
+  END IF;
+  IF (SELECT (n_points, arrived_at, first_seen, last_seen, max_alt_m)::text FROM core.flights WHERE icao24 = 'f00002')
+     IS DISTINCT FROM '(9,"2026-10-29 08:07:30+00","2026-10-29 08:00:00+00","2026-10-29 08:12:00+00",800)' THEN
+    RAISE EXCEPTION 'unexpected f00002 flight: %',
+      (SELECT (n_points, arrived_at, first_seen, last_seen, max_alt_m)::text FROM core.flights WHERE icao24 = 'f00002');
+  END IF;
+  IF (SELECT first_seen FROM core.flights WHERE icao24 = 'f00004') <> '2026-10-29 08:21Z' THEN
+    RAISE EXCEPTION 'f00004 should start at its first airborne point';
+  END IF;
+  IF (SELECT array_agg(rows_out ORDER BY run_id) FROM ops.job_runs WHERE job = 'flights_sessionizer' AND status = 'ok')
+     IS DISTINCT FROM ARRAY[3, 0] THEN
+    RAISE EXCEPTION 'expected flights_sessionizer runs writing 3, then 0 flights';
+  END IF;
+END $$;
+SQL
+echo "flights_sessionizer test passed"
+
 # Backup and restore drill (after the aggregates test, so agg.traffic_h3_15m has data): dump without
 # raw chunk data or continuous-aggregate data (D13), restore into a new database, compare, then
 # check that the aggregate is rebuilt once raw data is back.

@@ -12,6 +12,7 @@ from orchestrator.carbon import carbon_readings_record, carbon_readings_record_s
 from orchestrator.gaps import collector_gap_check, collector_gap_check_schedule
 from orchestrator.metar import metar_fetch, metar_fetch_schedule
 from orchestrator.ref_refresh import ref_refresh, ref_refresh_schedule
+from orchestrator.sessionizer import flights_sessionizer, flights_sessionizer_schedule
 
 defs = Definitions(
     jobs=[
@@ -19,6 +20,7 @@ defs = Definitions(
         backup,
         carbon_readings_record,
         collector_gap_check,
+        flights_sessionizer,
         metar_fetch,
         ref_refresh,
     ],
@@ -27,6 +29,7 @@ defs = Definitions(
         backup_schedule,
         carbon_readings_record_schedule,
         collector_gap_check_schedule,
+        flights_sessionizer_schedule,
         metar_fetch_schedule,
         ref_refresh_schedule,
     ],

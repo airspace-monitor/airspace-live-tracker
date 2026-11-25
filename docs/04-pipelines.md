@@ -153,8 +153,9 @@ Every job takes an explicit `[window_start, window_end)`, writes one `ops.job_ru
 
 ### `flights_sessionizer`
 
-- Points are processed in `(icao24, snapshot_time)` order. A point extends the aircraft's `active` flight unless a boundary occurs; otherwise a new flight opens with a new UUIDv7 `flight_id`.
-- **Boundaries:** a gap > 20 min between consecutive points; `on_ground` → airborne after at least one `on_ground` point; the callsign changes from one non-NULL value to a different non-NULL value (NULL ↔ value never splits).
+- Points are processed in `(icao24, snapshot_time)` order. A point extends the aircraft's `active` flight unless a boundary occurs. Without an open flight, an **airborne** point opens a new one with a new UUIDv7 `flight_id`; a point on the ground opens nothing and is only context (it can set the next flight's departure). So aircraft only seen on the ground never become flights, and a flight's ground points are the ones after its landing ([D16](11-tasks.md#decided-while-building)).
+- Each run reads the window plus the 20 min before it as context. Only points after the aircraft's latest stored flight's `last_seen` are new; earlier ones were processed already, so replaying a window changes nothing. `arrived_at` is the point's `time_position`, or its `snapshot_time` when that is NULL. Runs are serialised with an advisory lock.
+- **Boundaries:** a gap > 20 min since the flight's last point; `on_ground` → airborne (the flight's last point on the ground, this one airborne); the callsign changes from one non-NULL value to a different non-NULL value (NULL ↔ value never splits).
 - **Status:** `active` while open. When a boundary closes it or its `last_seen` is > 20 min before the watermark: `completed` if an `on_ground` point was seen at the end, otherwise `lost`.
 - **Finalising:** a closed flight with `last_seen` before the watermark gets `finalized = true` and is never changed by scheduled runs. Late points older than a finalized flight's `last_seen` are not attached; `flights_rebuild` picks them up.
 - **Observed arrival** at a target airport A (sets `arr_icao = A`, `arr_source = 'observed'`, `arrived_at`, `arrival_method`, `height_method`):
