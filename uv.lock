@@ -157,6 +157,7 @@ dependencies = [
     { name = "dagster" },
     { name = "dagster-postgres" },
     { name = "dagster-webserver" },
+    { name = "h3" },
     { name = "psycopg", extra = ["binary"] },
 ]
 
@@ -166,6 +167,7 @@ requires-dist = [
     { name = "dagster", specifier = "==1.13.29" },
     { name = "dagster-postgres", specifier = "==0.29.29" },
     { name = "dagster-webserver", specifier = "==1.13.29" },
+    { name = "h3", specifier = ">=4.1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
 ]
 

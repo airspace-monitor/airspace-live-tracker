@@ -90,6 +90,8 @@ class JobsSettings(BaseSettings):
     carbon_signal_url: str = "http://carbon-signal:8002"
     # METAR source for `metar_fetch` (docs/02-data-sources.md#weather-metar).
     metar_url: str = "https://aviationweather.gov/api/data/metar"
+    # `ref_refresh` reads its files from this directory instead of the internet (CI).
+    ref_source_dir: str | None = None
 
 
 class CarbonSignalSettings(BaseSettings):

@@ -1,0 +1,175 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "ISO_A2": "AT",
+    "ISO_A2_EH": "AT",
+    "ADMIN": "Austria",
+    "NAME": "Austria"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       9.5,
+       46.4
+      ],
+      [
+       17.2,
+       46.4
+      ],
+      [
+       17.2,
+       49.0
+      ],
+      [
+       9.5,
+       49.0
+      ],
+      [
+       9.5,
+       46.4
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ISO_A2": "SK",
+    "ISO_A2_EH": "SK",
+    "ADMIN": "Slovakia",
+    "NAME": "Slovakia"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       17.2,
+       47.7
+      ],
+      [
+       22.6,
+       47.7
+      ],
+      [
+       22.6,
+       49.6
+      ],
+      [
+       17.2,
+       49.6
+      ],
+      [
+       17.2,
+       47.7
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ISO_A2": "-99",
+    "ISO_A2_EH": "FR",
+    "ADMIN": "France",
+    "NAME": "France"
+   },
+   "geometry": {
+    "type": "MultiPolygon",
+    "coordinates": [
+     [
+      [
+       [
+        -4.8,
+        42.4
+       ],
+       [
+        8.2,
+        42.4
+       ],
+       [
+        8.2,
+        51.1
+       ],
+       [
+        -4.8,
+        51.1
+       ],
+       [
+        -4.8,
+        42.4
+       ]
+      ]
+     ],
+     [
+      [
+       [
+        8.5,
+        41.4
+       ],
+       [
+        9.6,
+        41.4
+       ],
+       [
+        9.6,
+        43.0
+       ],
+       [
+        8.5,
+        43.0
+       ],
+       [
+        8.5,
+        41.4
+       ]
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "ISO_A2": "-99",
+    "ISO_A2_EH": "-99",
+    "ADMIN": "Somaliland",
+    "NAME": "Somaliland"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       43.0,
+       8.0
+      ],
+      [
+       48.9,
+       8.0
+      ],
+      [
+       48.9,
+       11.5
+      ],
+      [
+       43.0,
+       11.5
+      ],
+      [
+       43.0,
+       8.0
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

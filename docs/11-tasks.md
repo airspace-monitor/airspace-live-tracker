@@ -130,7 +130,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 
 | # | Task | Track | Status | Notes |
 |---|---|---|---|---|
-| M3.1 | `ref_refresh`: airports, runways, aircraft, airlines, countries, H3 → country | A | ⬜ | Takes over the M1.18 seed for airports and runways |
+| M3.1 | `ref_refresh`: airports, runways, aircraft, airlines, countries, H3 → country | A | ✅ | 2026-11-25: monthly (1st, 01:00). Downloads and parses all five datasets, then replaces the tables in one transaction (deletes, updates, inserts); refuses a dataset that halves. Rebuilds `ref.h3_r4_country` for all 288k r4 cells. The newest OpenSky aircraft snapshot is 2025-08 (587k aircraft). Takes over the M1.18 seed; its parsers moved to `orchestrator.refdata`. `infra/test-db.sh` runs it three times on fixtures |
 | M3.3 | `flights_sessionizer` (watermark, boundaries, observed arrivals and departures) | A | ⬜ | |
 | M3.4 | `flight_labels_merge` | A | ⬜ | |
 | M3.5 | `routes_refresh` (OpenSky flight lists plus Zenodo fallback) | A | ⬜ | |

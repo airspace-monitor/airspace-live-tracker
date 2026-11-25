@@ -195,6 +195,21 @@ A gap is a run of ≥ 4 consecutive slots (`requested_at` on the collector's 90 
 - Misses before a collector's first success are not a gap; it has not started yet.
 - The event says the VM has no data, so it also fires when the collector works but cannot upload.
 
+### `ref_refresh`
+
+Monthly full reload of the reference tables ([02](02-data-sources.md#reference-data)), so they follow their sources and nothing else writes them.
+
+1. **Download and parse everything first**, before any write:
+   - airports and runways from OurAirports (same parser and skip rules as the M1 seed; the run fails if a target airport is missing);
+   - aircraft from the newest `metadata/aircraft-database-complete-YYYY-MM.csv` in OpenSky's public `data-samples` bucket (single-quoted CSV; `icao24` lower-cased, the latest `timestamp` wins);
+   - airlines from OpenFlights `airlines.dat` (active, three-letter ICAO, first entry per code);
+   - countries from Natural Earth's 1:50m GeoJSON (tag `v5.1.2` of `nvkelso/natural-earth-vector`). The code is `ISO_A2_EH` (which fixes France, Norway and Kosovo); features without one (Somaliland, N. Cyprus, Siachen) are skipped; features that share a code are merged; the name is `ADMIN`.
+2. **Stage and replace in one transaction:** each dataset is copied into a temporary table; then rows missing from the stage are deleted (runways before airports), changed rows are updated and new rows inserted. `rows_out` counts those changes, so a re-run reports 0.
+3. **`ref.h3_r4_country` is rebuilt** from the new countries: every r4 cell on Earth (288,122) gets the country containing its centre; cells at sea get no row.
+4. **Guard:** if any dataset has fewer than half the rows currently stored, the run fails and nothing changes.
+
+The `ops.job_runs` row has `window_start = window_end =` the run time (a full reload has no data window). `REF_SOURCE_DIR` makes it read the files from a directory instead (CI: `db/tests/refdata`).
+
 ### `metar_fetch`
 
 Keeps the target airports' weather current for go-around heights (QNH), the sessionizer and the ETA features.

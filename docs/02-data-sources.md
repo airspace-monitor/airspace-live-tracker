@@ -71,9 +71,9 @@ Facts below were checked against the providers' documentation on 2026-10-29. If 
 |---|---|---|---|---|
 | Airports | OurAirports `airports.csv` | Public domain | ICAO/IATA, coordinates, type, elevation | seeded in M1, then monthly |
 | Runways | OurAirports `runways.csv` | Public domain | Runway headings for wind components | seeded in M1, then monthly |
-| Aircraft | OpenSky aircraft database CSV | Non-commercial, attribution | icao24 → registration, typecode, operator | monthly |
+| Aircraft | OpenSky aircraft database, newest monthly `aircraft-database-complete-YYYY-MM.csv` | Non-commercial, attribution | icao24 → registration, typecode, operator | monthly |
 | Airlines | OpenFlights `airlines.dat` | ODbL 1.0 (attribution in README) | Callsign prefix → airline name | monthly |
-| Countries | Natural Earth admin-0, 1:50m | Public domain | `over_country` for the chat; place names in briefings | monthly |
+| Countries | Natural Earth admin-0, 1:50m (GeoJSON from `nvkelso/natural-earth-vector` v5.1.2) | Public domain | `over_country` for the chat; place names in briefings | monthly |
 | H3 grid | `h3` Python library | Apache 2.0 | Cell ids, boundaries | n/a |
 
 Airports and runways are loaded in M1 by the seed loader `db/seeds/ourairports.py` (downloads both CSVs, upserts on the primary key, safe to re-run; skipped rows: [D10](11-tasks.md#decided-while-building)). On the VM, from `infra/`: `docker compose run --rm -v ../db:/db:ro dagster-code python /db/seeds/ourairports.py`, because go-around detection in M2 needs the target airports' elevations. From M3, `ref_refresh` keeps them current. The other datasets are first loaded by `ref_refresh` in M3.

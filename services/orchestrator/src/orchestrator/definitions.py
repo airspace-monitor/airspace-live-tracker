@@ -11,14 +11,23 @@ from orchestrator.backup import backup, backup_schedule
 from orchestrator.carbon import carbon_readings_record, carbon_readings_record_schedule
 from orchestrator.gaps import collector_gap_check, collector_gap_check_schedule
 from orchestrator.metar import metar_fetch, metar_fetch_schedule
+from orchestrator.ref_refresh import ref_refresh, ref_refresh_schedule
 
 defs = Definitions(
-    jobs=[agg_backfill_refresh, backup, carbon_readings_record, collector_gap_check, metar_fetch],
+    jobs=[
+        agg_backfill_refresh,
+        backup,
+        carbon_readings_record,
+        collector_gap_check,
+        metar_fetch,
+        ref_refresh,
+    ],
     schedules=[
         agg_backfill_refresh_schedule,
         backup_schedule,
         carbon_readings_record_schedule,
         collector_gap_check_schedule,
         metar_fetch_schedule,
+        ref_refresh_schedule,
     ],
 )
