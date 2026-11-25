@@ -10,6 +10,7 @@ from orchestrator.aggregates import agg_backfill_refresh, agg_backfill_refresh_s
 from orchestrator.backup import backup, backup_schedule
 from orchestrator.carbon import carbon_readings_record, carbon_readings_record_schedule
 from orchestrator.gaps import collector_gap_check, collector_gap_check_schedule
+from orchestrator.labels import flight_labels_merge, flight_labels_merge_schedule
 from orchestrator.metar import metar_fetch, metar_fetch_schedule
 from orchestrator.ref_refresh import ref_refresh, ref_refresh_schedule
 from orchestrator.sessionizer import flights_sessionizer, flights_sessionizer_schedule
@@ -20,6 +21,7 @@ defs = Definitions(
         backup,
         carbon_readings_record,
         collector_gap_check,
+        flight_labels_merge,
         flights_sessionizer,
         metar_fetch,
         ref_refresh,
@@ -29,6 +31,7 @@ defs = Definitions(
         backup_schedule,
         carbon_readings_record_schedule,
         collector_gap_check_schedule,
+        flight_labels_merge_schedule,
         flights_sessionizer_schedule,
         metar_fetch_schedule,
         ref_refresh_schedule,

@@ -371,6 +371,40 @@ END $$;
 SQL
 echo "flights_sessionizer test passed"
 
+# flight_labels_merge (M3.4) on the sessionizer's flights of 2026-10-29. f00001 gets both estimates
+# from its closest OpenSky row (the 06:00 one is too far away); f00002 keeps its observed arrival
+# and gets an opensky departure; f00004 keeps its observed departure, and its NULL arrival estimate
+# changes nothing. Re-running updates nothing.
+dc exec -T db psql -U postgres -d airspace -q -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO raw.opensky_flights (icao24, first_seen, last_seen, est_dep_icao, est_arr_icao, batch_id)
+VALUES ('f00001', '2026-10-29 06:00Z', '2026-10-29 07:00Z', 'EGLL', 'LFPG', '00000000-0000-7000-8000-0000000000f2'),
+       ('f00001', '2026-10-29 07:50Z', '2026-10-29 09:30Z', 'EDDF', 'LIRF', '00000000-0000-7000-8000-0000000000f2'),
+       ('f00002', '2026-10-29 08:10Z', '2026-10-29 08:20Z', 'LOWK', 'LOWG', '00000000-0000-7000-8000-0000000000f2'),
+       ('f00004', '2026-10-29 08:15Z', '2026-10-29 09:00Z', 'LOWL', NULL, '00000000-0000-7000-8000-0000000000f2');
+SQL
+labels_window='{"ops": {"flight_labels_merge_op": {"config": {"window_start": "2026-10-29T00:00:00+00:00", "window_end": "2026-10-30T00:00:00+00:00"}}}}'
+echo "$labels_window" | dc exec -T dagster-code sh -c 'cat > /tmp/labels_window.yaml'
+for _ in 1 2; do
+  dc exec -T dagster-code dagster job execute -m orchestrator.definitions -j flight_labels_merge \
+    -c /tmp/labels_window.yaml >/dev/null
+done
+dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
+DO $$
+BEGIN
+  IF (SELECT array_agg((icao24, dep_icao, dep_source, arr_icao, arr_source)::text ORDER BY icao24)
+      FROM core.flights WHERE icao24 LIKE 'f0000%') IS DISTINCT FROM ARRAY[
+       '(f00001,EDDF,opensky,LIRF,opensky)', '(f00002,LOWK,opensky,LOWW,observed)', '(f00004,LOWW,observed,,)'] THEN
+    RAISE EXCEPTION 'unexpected labels: %', (SELECT array_agg((icao24, dep_icao, dep_source, arr_icao,
+      arr_source)::text ORDER BY icao24) FROM core.flights WHERE icao24 LIKE 'f0000%');
+  END IF;
+  IF (SELECT array_agg(rows_out ORDER BY run_id) FROM ops.job_runs WHERE job = 'flight_labels_merge' AND status = 'ok')
+     IS DISTINCT FROM ARRAY[2, 0] THEN
+    RAISE EXCEPTION 'expected flight_labels_merge runs updating 2, then 0 flights';
+  END IF;
+END $$;
+SQL
+echo "flight_labels_merge test passed"
+
 # Backup and restore drill (after the aggregates test, so agg.traffic_h3_15m has data): dump without
 # raw chunk data or continuous-aggregate data (D13), restore into a new database, compare, then
 # check that the aggregate is rebuilt once raw data is back.
