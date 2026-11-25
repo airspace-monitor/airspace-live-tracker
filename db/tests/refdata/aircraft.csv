@@ -1,0 +1,6 @@
+'icao24','timestamp','acars','adsb','built','categoryDescription','country','engines','firstFlightDate','firstSeen','icaoAircraftClass','lineNumber','manufacturerIcao','manufacturerName','model','modes','nextReg','notes','operator','operatorCallsign','operatorIata','operatorIcao','owner','prevReg','regUntil','registered','registration','selCal','serialNumber','status','typecode','vdl'
+'000000','2017-10-19 18:30:18',0,0,,'',,'',,,'','','','',unknow,0,'','','','','','','','',,,'','','','','',0
+'440017','2020-01-01 00:00:00',0,0,,'',,'',,,L2J,'',BOEING,'Boeing',737-800,0,'','','Old Operator','','','xxx','','',,,OE-OLD,'','','',B738,0
+'440017','2024-06-01 00:00:00',0,0,,'',,'',,,L2J,'',AIRBUS,'Airbus','A320 214',0,'','','Austrian Airlines','AUSTRIAN','OS','aua','','',,,OE-LBM,'','','',A320,0
+'3B7D41','2023-01-01 00:00:00',0,0,,'',,'',,,L1P,'',ROBIN,'Robin','DR400',0,'','','Ecole Nationale De L''aviation Civile','','','','','',,,F-GKQR,'','','',DR40,0
+'4b1805','2024-01-01 00:00:00',0,0,,'',,'',,,L2J,'',,'C Series Aircraft Limited Partnership','BD-500-1A11 (CS300)',0,'','','Swiss International Air Lines','SWISS','LX','SWR','','',,,HB-JCN,'','','',BCS3,0

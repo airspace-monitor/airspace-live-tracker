@@ -69,6 +69,7 @@ The original one-page intent is in [docs/CloudAI-project-intent.pdf](docs/CloudA
 
 - Flight data: [The OpenSky Network](https://opensky-network.org). The attribution is always visible in the app.
 - Historical routes: OpenSky COVID-19 flight dataset on Zenodo, DOI [10.5281/zenodo.3737101](https://doi.org/10.5281/zenodo.3737101).
+- Aircraft registrations and types: the [OpenSky aircraft database](https://opensky-network.org) (non-commercial use).
 - Airports and runways: [OurAirports](https://ourairports.com) (public domain).
 - Airlines: [OpenFlights](https://openflights.org/data) (ODbL 1.0).
 - Country borders: [Natural Earth](https://www.naturalearthdata.com) (public domain).

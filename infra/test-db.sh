@@ -97,6 +97,51 @@ END $$;
 SQL
 echo "ourairports seed test passed"
 
+# ref_refresh (M3.1) from the fixture files. The airports and runways match the seed above, so the
+# first run only adds 4 aircraft, 3 airlines and 3 countries; a second run changes nothing; a third
+# with one aircraft gone upstream deletes it. H3 cells get the fixture countries only.
+ref_run() {  # $1 = source dir, $2 = optional shell setup run first
+  dc run --rm -T -v "$(cd .. && pwd)/db:/db:ro" -e REF_SOURCE_DIR="$1" dagster-code \
+    sh -c "${2:-true} && dagster job execute -m orchestrator.definitions -j ref_refresh >/dev/null"
+}
+ref_run /db/tests/refdata
+ref_run /db/tests/refdata
+ref_run /tmp/ref "cp -r /db/tests/refdata /tmp/ref && sed -i '/^.4b1805/d' /tmp/ref/aircraft.csv"
+dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
+DO $$
+BEGIN
+  IF (SELECT array_agg(rows_out ORDER BY run_id) FROM ops.job_runs WHERE job = 'ref_refresh' AND status = 'ok')
+     IS DISTINCT FROM ARRAY[10, 0, 1] THEN
+    RAISE EXCEPTION 'expected ref_refresh runs changing 10, 0, then 1 rows';
+  END IF;
+  IF (SELECT array_agg(icao24 ORDER BY icao24) FROM ref.aircraft) IS DISTINCT FROM ARRAY['000000', '3b7d41', '440017'] THEN
+    RAISE EXCEPTION 'unexpected ref.aircraft rows';
+  END IF;
+  IF (SELECT (registration, operator_icao)::text FROM ref.aircraft WHERE icao24 = '440017') <> '(OE-LBM,AUA)' THEN
+    RAISE EXCEPTION 'the latest aircraft row did not win';
+  END IF;
+  IF (SELECT array_agg(icao ORDER BY icao) FROM ref.airlines) IS DISTINCT FROM ARRAY['AUA', 'DLH', 'SWR'] THEN
+    RAISE EXCEPTION 'unexpected ref.airlines rows';
+  END IF;
+  IF (SELECT array_agg(iso_a2 ORDER BY iso_a2) FROM ref.countries) IS DISTINCT FROM ARRAY['AT', 'FR', 'SK'] THEN
+    RAISE EXCEPTION 'unexpected ref.countries rows';
+  END IF;
+  IF NOT (SELECT ST_Covers(geom, ST_MakePoint(16.5697, 48.110298)::geography) FROM ref.countries WHERE iso_a2 = 'AT') THEN
+    RAISE EXCEPTION 'LOWW is not inside the AT fixture polygon';
+  END IF;
+  IF (SELECT array_agg(DISTINCT iso_a2 ORDER BY iso_a2) FROM ref.h3_r4_country) IS DISTINCT FROM ARRAY['AT', 'FR', 'SK'] THEN
+    RAISE EXCEPTION 'h3_r4_country should only map cells to the fixture countries';
+  END IF;
+  IF (SELECT count(*) FROM ref.h3_r4_country WHERE iso_a2 = 'AT') < 20 THEN
+    RAISE EXCEPTION 'too few AT cells in h3_r4_country';
+  END IF;
+  IF (SELECT count(*) FROM ref.airports WHERE is_target) <> 3 OR (SELECT count(*) FROM ref.runways) <> 3 THEN
+    RAISE EXCEPTION 'airports or runways changed';
+  END IF;
+END $$;
+SQL
+echo "ref_refresh test passed"
+
 # stream-worker (M2.2): live snapshots relative to now, announced with NOTIFY as ingest does.
 # e00001 squawks 7700 over Hungary 4 times (one event, keyed by its first observation); e00002
 # squawks outside the Europe box and e00003 only twice (no events, D14); e00004 descends and
