@@ -59,12 +59,6 @@ Facts below were checked against the providers' documentation on 2026-10-29. If 
 - **Historical:** Iowa Environmental Mesonet ASOS archive (CSV by station and date range), loaded once by the manual `metar_backfill` job for the training period before live METAR started.
 - **Parsed and stored in SI:** wind direction (deg), wind speed and gust (kt × 0.514444 → m/s), visibility (m), ceiling (ft × 0.3048 → m; lowest BKN/OVC/VV layer), temperature and dew point (°C), QNH (hPa), flight category, raw text.
 
-## Historical routes: Zenodo
-
-- OpenSky's COVID-19 flight dataset on Zenodo (2019–2022), monthly `flightlist_*.csv.gz`, DOI 10.5281/zenodo.3737101 (cited in the README), non-commercial licence (`LICENSE.txt` in the record).
-- Converted once to Parquet and read with DuckDB.
-- **Only use:** `routes_refresh` takes Zenodo rows for callsigns that have no OpenSky flight-list entry in the last 28 days. It is a fallback for the first weeks; routes change and the data includes the COVID years.
-
 ## Reference data
 
 | Dataset | Source | Licence | Use | Refresh |

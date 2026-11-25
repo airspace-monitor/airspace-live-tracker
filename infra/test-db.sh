@@ -405,6 +405,51 @@ END $$;
 SQL
 echo "flight_labels_merge test passed"
 
+# routes_refresh (M3.5) on 2026-09-01..29: RTE1 flew 3 times to LOWW and once to LZIB; RTE2 once to
+# LHBP and once with no estimate (left out of the share); a flight on 09-29 is outside the window.
+# The stale OLD1 route is replaced; a rebuild is the same; an empty window is refused (shrink guard).
+dc exec -T db psql -U postgres -d airspace -q -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO ref.callsign_routes VALUES ('OLD1', 'EDDM', 5, 1, '2026-08-01', 'opensky');
+INSERT INTO raw.opensky_flights (icao24, first_seen, last_seen, callsign, est_arr_icao, batch_id)
+VALUES ('r00001', '2026-09-02 10:00Z', '2026-09-02 11:00Z', 'RTE1', 'LOWW', '00000000-0000-7000-8000-0000000000f3'),
+       ('r00001', '2026-09-10 10:00Z', '2026-09-10 11:00Z', 'RTE1', 'LOWW', '00000000-0000-7000-8000-0000000000f3'),
+       ('r00002', '2026-09-20 23:30Z', '2026-09-21 00:30Z', 'RTE1', 'LOWW', '00000000-0000-7000-8000-0000000000f3'),
+       ('r00002', '2026-09-05 10:00Z', '2026-09-05 11:00Z', 'RTE1', 'LZIB', '00000000-0000-7000-8000-0000000000f3'),
+       ('r00003', '2026-09-03 10:00Z', '2026-09-03 11:00Z', 'RTE2', 'LHBP', '00000000-0000-7000-8000-0000000000f3'),
+       ('r00003', '2026-09-04 10:00Z', '2026-09-04 11:00Z', 'RTE2', NULL, '00000000-0000-7000-8000-0000000000f3'),
+       ('r00003', '2026-09-29 10:00Z', '2026-09-29 11:00Z', 'RTE2', 'LZIB', '00000000-0000-7000-8000-0000000000f3');
+SQL
+routes_window='{"ops": {"routes_refresh_op": {"config": {"window_start": "2026-09-01T00:00:00+00:00", "window_end": "2026-09-29T00:00:00+00:00"}}}}'
+echo "$routes_window" | dc exec -T dagster-code sh -c 'cat > /tmp/routes_window.yaml'
+for _ in 1 2; do
+  dc exec -T dagster-code dagster job execute -m orchestrator.definitions -j routes_refresh \
+    -c /tmp/routes_window.yaml >/dev/null
+done
+routes_empty='{"ops": {"routes_refresh_op": {"config": {"window_start": "2025-01-01T00:00:00+00:00", "window_end": "2025-01-29T00:00:00+00:00"}}}}'
+echo "$routes_empty" | dc exec -T dagster-code sh -c 'cat > /tmp/routes_empty.yaml'
+if dc exec -T dagster-code dagster job execute -m orchestrator.definitions -j routes_refresh \
+    -c /tmp/routes_empty.yaml >/dev/null 2>&1; then
+  echo "routes_refresh replaced the routes with an empty window" >&2
+  exit 1
+fi
+dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
+DO $$
+BEGIN
+  IF (SELECT array_agg((callsign, destination, n_flights, share, last_seen, source)::text
+                       ORDER BY callsign, destination) FROM ref.callsign_routes)
+     IS DISTINCT FROM ARRAY['(RTE1,LOWW,3,0.75,2026-09-20,opensky)', '(RTE1,LZIB,1,0.25,2026-09-05,opensky)',
+                            '(RTE2,LHBP,1,1,2026-09-03,opensky)'] THEN
+    RAISE EXCEPTION 'unexpected routes: %', (SELECT array_agg((callsign, destination, n_flights, share, last_seen,
+      source)::text ORDER BY callsign, destination) FROM ref.callsign_routes);
+  END IF;
+  IF (SELECT array_agg((status, rows_out)::text ORDER BY run_id) FROM ops.job_runs WHERE job = 'routes_refresh')
+     IS DISTINCT FROM ARRAY['(ok,3)', '(ok,3)', '(failed,)'] THEN
+    RAISE EXCEPTION 'expected routes_refresh runs ok 3, ok 3, then failed';
+  END IF;
+END $$;
+SQL
+echo "routes_refresh test passed"
+
 # Backup and restore drill (after the aggregates test, so agg.traffic_h3_15m has data): dump without
 # raw chunk data or continuous-aggregate data (D13), restore into a new database, compare, then
 # check that the aggregate is rebuilt once raw data is back.
