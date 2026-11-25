@@ -133,7 +133,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 |---|---|---|---|---|
 | M3.1 | `ref_refresh`: airports, runways, aircraft, airlines, countries, H3 → country | A | ✅ | 2026-11-25: monthly (1st, 01:00). Downloads and parses all five datasets, then replaces the tables in one transaction (deletes, updates, inserts); refuses a dataset that halves. Rebuilds `ref.h3_r4_country` for all 288k r4 cells. The newest OpenSky aircraft snapshot is 2025-08 (587k aircraft). Takes over the M1.18 seed; its parsers moved to `orchestrator.refdata`. `infra/test-db.sh` runs it three times on fixtures |
 | M3.3 | `flights_sessionizer` (watermark, boundaries, observed arrivals and departures) | A | ✅ | 2026-11-25: Dagster every 5 min on the last 30 min plus 20 min of context; flights open at the first airborne point ([D16](#decided-while-building)); observed `on_ground` and `last_airborne` arrivals and observed departures at the targets; watermark closes and finalises. Logic in `orchestrator.flights` (17 unit tests); `infra/test-db.sh` runs a synthetic landing, takeoff, lost flight and parked aircraft twice |
-| M3.4 | `flight_labels_merge` | A | ⬜ | |
+| M3.4 | `flight_labels_merge` | A | ✅ | 2026-11-25: daily 08:00 for yesterday. Picks the closest OpenSky flight of the same aircraft within 30 min of `first_seen`; observed values win and NULL estimates change nothing. `infra/test-db.sh` runs it twice on the sessionizer's test flights. First live run 2026-11-26 08:00 (the sessionizer has only run since 2026-11-25) |
 | M3.5 | `routes_refresh` (OpenSky flight lists plus Zenodo fallback) | A | ⬜ | |
 | M3.6 | `metar_backfill` from Iowa Environmental Mesonet | A | ⬜ | |
 | M3.7 | `dq_checks` and the Grafana traffic-light table | A | ⬜ | |

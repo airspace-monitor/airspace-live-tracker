@@ -165,7 +165,11 @@ Every job takes an explicit `[window_start, window_end)`, writes one `ops.job_ru
 
 ### `flight_labels_merge`
 
-For each finalized `core.flights` row of the window, find the `raw.opensky_flights` row with the same `icao24` whose `first_seen` is within 30 min of the flight's `first_seen`. Copy `est_dep_icao` and `est_arr_icao` into `dep_icao` / `arr_icao` with source `opensky`, never overwriting an `observed` value.
+For each finalized `core.flights` row whose `first_seen` is in the window, find the `raw.opensky_flights` row with the same `icao24` whose `first_seen` is within 30 min of the flight's `first_seen` (the closest one; the earlier on a tie). Copy `est_dep_icao` and `est_arr_icao` into `dep_icao` / `arr_icao` with source `opensky`, never overwriting an `observed` value.
+
+- A NULL estimate leaves the current value alone; a non-NULL one replaces an earlier `opensky` value.
+- The window is yesterday because the collector fetches yesterday's flight lists at 06:00. A run that finds no list (late upload) labels nothing and can be re-run by hand for that day.
+- `rows_out` is the number of flights whose labels changed, so a replay records 0.
 
 ### `anomaly_scoring`
 
