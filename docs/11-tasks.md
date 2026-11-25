@@ -5,7 +5,7 @@ The working task list for the whole application, by milestone ([10](10-roadmap.m
 Status: ✅ done · 🟡 in progress · ⬜ to do · ⛔ blocked (the note says on what).
 Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#work-split)). Track A is owned by Dániel, Track B by Alek.
 
-*Last updated: 2026-11-23.*
+*Last updated: 2026-11-25.*
 
 ## What exists now
 
@@ -118,7 +118,7 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 |---|---|---|---|---|
 | M2.1 | public-api: `/live/snapshot`, `/live/stream` (SSE), `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/stats`, `/health` | B | ✅ | `services/api` serves all seven endpoints as `app_reader` (130 tests). `Dockerfile` and compose service `public-api` (`127.0.0.1:8001`); built and smoke-tested on the VM 2026-11-15. `/stats` keeps TimescaleDB chunk exclusion (61 s → 23 ms at 85M rows). Left for M2.8: CORS and `tailscale serve` |
 | M2.2 | stream-worker: squawk and go-around events, `ops.stream_state` | A | ✅ | 2026-11-22: `services/stream`, role `stream_worker`, LISTEN `new_snapshot` plus a 60 s re-check; progress in `ops.stream_state` (seeded with `-infinity`). Squawk events only in the Europe box after 3 airborne observations ([D14](#decided-while-building)). Go-arounds at the `ref.airports` targets; height uses METAR QNH once `metar_fetch` (M2.3) fills `core.metar`. CI runs the worker against live-timed snapshots. ETA inference joins when the `eta` model exists (M4) |
-| M2.3 | `metar_fetch` job | A | ⬜ | |
+| M2.3 | `metar_fetch` job | A | ✅ | 2026-11-25: Dagster at :05 and :35, last 3 h for the `is_target` airports from aviationweather.gov into `core.metar` (SI units; visibility from the raw report). Upsert, so replays write nothing and corrections replace. CI runs it against a local fixture. The stream-worker's go-around heights switch to QNH from the first report |
 | M2.4 | Web app shell: layout, header stats, attribution footer, bottom sheet under 900 px | B | ✅ | `web/` Vite 8 + React 19 + TypeScript strict: live header (`/stats`), Events feed (`/events`), tabs, attribution, bottom sheet under 900 px. Shell ~83 KB gzip JS + ~5 KB CSS; `MapPane` is a lazy chunk. ESLint/Prettier/Vitest; CI runs the web checks |
 | M2.5 | Map: aircraft layer, altitude colours, smooth motion, aircraft card, selected trail | B | ⬜ | |
 | M2.6 | Events panel with cursor paging and map fly-to | B | ⬜ | |
