@@ -195,6 +195,16 @@ A gap is a run of ≥ 4 consecutive slots (`requested_at` on the collector's 90 
 - Misses before a collector's first success are not a gap; it has not started yet.
 - The event says the VM has no data, so it also fires when the collector works but cannot upload.
 
+### `metar_fetch`
+
+Keeps the target airports' weather current for go-around heights (QNH), the sessionizer and the ETA features.
+
+- Stations are the `ref.airports` rows with `is_target` (LOWW, LZIB, LHBP). One request: `GET https://aviationweather.gov/api/data/metar?ids=…&format=json&hours=<h>`, where `h` is counted back from now so it covers the window start ([02](02-data-sources.md#weather-metar)). A window that starts more than 15 days ago fails: the API keeps no more, and `metar_backfill` covers older data.
+- Reports from other stations or outside `[window_start, window_end)` are dropped, so a run only writes its own window. Windows overlap (3 h every 30 min), so a report that arrives late is picked up by the next run.
+- **SI units:** wind and gusts kt × 0.514444; ceiling = lowest BKN, OVC or vertical-visibility base, ft × 0.3048; QNH (`altim`) in hPa. Visibility in metres comes from the raw report's group after the wind (`9999` and `CAVOK` are stored as 10,000 m), because the API's `visib` is in statute miles and capped at "6+"; it is the fallback for reports without a metric group. `wind_dir_deg` is NULL for variable wind; an unknown flight category is NULL.
+- Upsert on `(station, observed_at)`: a replayed window writes nothing, and a corrected report (different raw text for the same station and time) replaces the stored one. `rows_out` counts new or changed reports.
+- The base URL comes from `METAR_URL`; CI points it at a local fixture (`infra/test-db.sh`).
+
 ### `carbon_readings_record`
 
 Stores the simulated grid's carbon intensity for the carbon-aware behaviour ([ADR-0006](adr/0006-carbon-aware-operations.md)).

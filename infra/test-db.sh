@@ -223,6 +223,59 @@ END $$;
 SQL
 echo "carbon_readings_record test passed"
 
+# metar_fetch (M2.3) against a local stand-in for aviationweather.gov (a static file; the query is
+# ignored). Only target stations inside the window are stored; a replay writes nothing; a corrected
+# report replaces the stored one.
+metar_fixture() {  # $1 = window end (unix s), $2 = LOWW raw text
+  dc exec -T dagster-code python - "$1" "$2" <<'PY'
+import json, os, sys
+end, loww = int(sys.argv[1]), sys.argv[2]
+rec = lambda icao, t, raw: {"icaoId": icao, "obsTime": t, "rawOb": raw, "wdir": 100, "wspd": 7,
+    "temp": 2, "dewp": -4, "altim": 1018, "clouds": [{"cover": "BKN", "base": 3000}], "fltCat": "MVFR"}
+records = [
+    rec("LOWW", end - 1800, loww),
+    rec("LZIB", end - 3600, "METAR LZIB 0000Z 08011KT 0800 FG BKN030 02/M03 Q1020"),
+    rec("EDDM", end - 1800, "METAR EDDM 0000Z 10007KT 9999 BKN030 02/M04 Q1018"),  # not a target
+    rec("LOWW", end - 4 * 3600, loww),                                               # before the window
+]
+os.makedirs("/tmp/metar", exist_ok=True)
+json.dump(records, open("/tmp/metar/metar.json", "w"))
+PY
+}
+now_s=$(date -u +%s)
+metar_window="{\"ops\": {\"metar_fetch_op\": {\"config\": {\"window_start\": \"$(date -u -d "@$((now_s - 10800))" +%FT%T+00:00)\", \"window_end\": \"$(date -u -d "@$now_s" +%FT%T+00:00)\"}}}}"
+echo "$metar_window" | dc exec -T dagster-code sh -c 'cat > /tmp/metar_window.yaml'
+metar_run() {
+  dc exec -T -e METAR_URL=http://127.0.0.1:8765/metar.json dagster-code \
+    dagster job execute -m orchestrator.definitions -j metar_fetch -c /tmp/metar_window.yaml >/dev/null
+}
+metar_fixture "$now_s" "METAR LOWW 0000Z 10007KT 9999 BKN030 02/M04 Q1018"
+dc exec -d dagster-code python -m http.server 8765 --bind 127.0.0.1 --directory /tmp/metar
+metar_run
+metar_run
+metar_fixture "$now_s" "METAR COR LOWW 0000Z 10007KT 9999 BKN030 02/M04 Q1018"
+metar_run
+dc exec -T db psql -U postgres -d airspace -v ON_ERROR_STOP=1 -q <<'SQL'
+DO $$
+BEGIN
+  IF (SELECT array_agg(station ORDER BY station) FROM core.metar) IS DISTINCT FROM ARRAY['LOWW', 'LZIB'] THEN
+    RAISE EXCEPTION 'expected one LOWW and one LZIB report';
+  END IF;
+  IF (SELECT raw_text FROM core.metar WHERE station = 'LOWW') NOT LIKE 'METAR COR %' THEN
+    RAISE EXCEPTION 'the corrected LOWW report did not replace the first one';
+  END IF;
+  IF (SELECT (visibility_m, ceiling_m, wind_speed_ms, flight_category)::text FROM core.metar WHERE station = 'LZIB')
+     IS DISTINCT FROM '(800,914,3.6,MVFR)' THEN
+    RAISE EXCEPTION 'LZIB not stored in SI units';
+  END IF;
+  IF (SELECT array_agg(rows_out ORDER BY run_id) FROM ops.job_runs WHERE job = 'metar_fetch' AND status = 'ok')
+     IS DISTINCT FROM ARRAY[2, 0, 1] THEN
+    RAISE EXCEPTION 'expected metar_fetch runs writing 2, 0, then 1 rows';
+  END IF;
+END $$;
+SQL
+echo "metar_fetch test passed"
+
 # Backup and restore drill (after the aggregates test, so agg.traffic_h3_15m has data): dump without
 # raw chunk data or continuous-aggregate data (D13), restore into a new database, compare, then
 # check that the aggregate is rebuilt once raw data is back.

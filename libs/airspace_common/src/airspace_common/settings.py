@@ -88,6 +88,8 @@ class JobsSettings(BaseSettings):
     jobs_db_host: str = "db"
     # carbon-signal, cluster-internal (docs/adr/0006-carbon-aware-operations.md).
     carbon_signal_url: str = "http://carbon-signal:8002"
+    # METAR source for `metar_fetch` (docs/02-data-sources.md#weather-metar).
+    metar_url: str = "https://aviationweather.gov/api/data/metar"
 
 
 class CarbonSignalSettings(BaseSettings):
