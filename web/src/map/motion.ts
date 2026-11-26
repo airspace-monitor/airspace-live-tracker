@@ -44,7 +44,7 @@ export function project(
   trackDeg: number | null,
   dtS: number,
 ): [number, number] {
-  if (velMs === null || trackDeg === null || dtS <= 0) return [lon, lat]
+  if (velMs === null || trackDeg === null || !Number.isFinite(dtS) || dtS <= 0) return [lon, lat]
 
   const distance = velMs * Math.min(dtS, MAX_EXTRAPOLATION_S)
   const bearing = (trackDeg * Math.PI) / 180
@@ -71,7 +71,8 @@ export function targetPosition(
   snapshotTimeMs: number | null,
   now: number,
 ): [number, number] {
-  if (snapshotTimeMs === null || !canExtrapolate(aircraft)) return [aircraft.lon, aircraft.lat]
+  if (snapshotTimeMs === null || !Number.isFinite(snapshotTimeMs) || !canExtrapolate(aircraft))
+    return [aircraft.lon, aircraft.lat]
 
   const t0 = snapshotTimeMs - (aircraft.pos_age_s ?? 0) * 1000
   const dtS = Math.min(Math.max((now - t0) / 1000, 0), MAX_EXTRAPOLATION_S)

@@ -34,6 +34,7 @@ export function aircraftLayer(
     updateTriggers: {
       getPosition: [revision],
       getColor: [revision],
+      getAngle: [revision],
     },
     onHover: (info) => {
       onHoverChange?.((info.object as MotionAircraft | undefined)?.icao24 ?? null)
