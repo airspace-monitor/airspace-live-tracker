@@ -12,6 +12,7 @@ import { useLiveSnapshot } from '../api/queries'
 import { MAP_STYLE } from '../lib/basemap'
 import { parseAircraft, type Aircraft } from '../lib/aircraft'
 import { aircraftLayer } from '../map/aircraftLayer'
+import { advanceMotion, updateMotion, type MotionAircraft } from '../map/motion'
 import { AircraftCard } from './AircraftCard'
 import { AltitudeLegend } from './AltitudeLegend'
 
@@ -19,7 +20,11 @@ export default function MapPane() {
   const containerRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<MapboxOverlay | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
-  const aircraftRef = useRef<Aircraft[]>([])
+  const motionRef = useRef<MotionAircraft[]>([])
+  const revisionRef = useRef(0)
+  const rafRef = useRef<number | null>(null)
+  const lastFrameRef = useRef(0)
+  const lastSnapshotRef = useRef<string | null>(null)
   const { data } = useLiveSnapshot()
   const [selected, setSelected] = useState<Aircraft | null>(null)
 
@@ -31,22 +36,47 @@ export default function MapPane() {
   const applyAircraft = useCallback(() => {
     const overlay = overlayRef.current
     if (!overlay) return
+    revisionRef.current += 1
     overlay.setProps({
       layers: [
-        aircraftLayer(aircraftRef.current, (icao24) => {
-          const map = mapRef.current
-          if (map) map.getCanvasContainer().style.cursor = icao24 ? 'pointer' : ''
-        }),
+        aircraftLayer(
+          motionRef.current,
+          (icao24) => {
+            const map = mapRef.current
+            if (map) map.getCanvasContainer().style.cursor = icao24 ? 'pointer' : ''
+          },
+          revisionRef.current,
+        ),
       ],
     })
   }, [])
 
-  // The query usually resolves after the map effect. Keep the latest rows in a ref and
-  // apply them whenever either side becomes ready.
+  // Merge each snapshot into the interpolation state, then let the animation loop
+  // advance it. A repeated snapshot_time (SSE open/refetch) is ignored.
   useEffect(() => {
-    aircraftRef.current = aircraft
+    if (!data) return
+    const snapshotTime = data.snapshot_time
+    if (snapshotTime === lastSnapshotRef.current) return
+    lastSnapshotRef.current = snapshotTime
+    const snapshotTimeMs = Date.parse(snapshotTime)
+    motionRef.current = updateMotion(motionRef.current, aircraft, snapshotTimeMs, performance.now())
     applyAircraft()
-  }, [aircraft, applyAircraft])
+  }, [aircraft, data, applyAircraft])
+
+  useEffect(() => {
+    const loop = (time: number) => {
+      rafRef.current = requestAnimationFrame(loop)
+      if (time - lastFrameRef.current < 1000 / 60) return
+      lastFrameRef.current = time
+      motionRef.current = advanceMotion(motionRef.current, time)
+      applyAircraft()
+    }
+    rafRef.current = requestAnimationFrame(loop)
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+  }, [applyAircraft])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
