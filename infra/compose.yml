@@ -72,6 +72,9 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://app_reader:${APP_READER_PASSWORD:?}@db:5432/airspace?sslmode=disable
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-60}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-10}
     ports:
       # Local only. `tailscale serve` exposes it to the tailnet (docs/01-architecture.md).
       - "127.0.0.1:${API_HOST_PORT:-8001}:8001"

@@ -37,6 +37,14 @@ export interface EventsPage {
   next_cursor: { before_ts: string; before_id: number } | null
 }
 
+/** `[unix_s, lon, lat, alt_m]` from `GET /aircraft/{icao24}/track`. */
+export type TrackPoint = [number, number, number, number | null]
+
+export interface AircraftTrack {
+  icao24: string
+  points: TrackPoint[]
+}
+
 export interface AircraftState {
   time: string
   lon: number

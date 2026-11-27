@@ -6,10 +6,11 @@ import { Tabs } from './Tabs'
 interface BottomSheetProps {
   active: TabId
   onChange: (tab: TabId) => void
+  onLocate?: (lon: number, lat: number) => void
 }
 
 /** The under-900px layout: the side panel becomes a collapsible sheet above the footer. */
-export function BottomSheet({ active, onChange }: BottomSheetProps) {
+export function BottomSheet({ active, onChange, onLocate }: BottomSheetProps) {
   const [expanded, setExpanded] = useState(true)
 
   return (
@@ -33,7 +34,7 @@ export function BottomSheet({ active, onChange }: BottomSheetProps) {
       <Tabs active={active} onChange={onChange} idPrefix="sheet" />
 
       <div id="sheet-panels" className="min-h-0 flex-1" hidden={!expanded}>
-        <PanelStack active={active} idPrefix="sheet" />
+        <PanelStack active={active} idPrefix="sheet" onLocate={onLocate} />
       </div>
     </section>
   )

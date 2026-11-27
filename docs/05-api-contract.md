@@ -5,8 +5,16 @@ This is the boundary between backend and frontend work. Change it here first, th
 - Base URLs: `https://api.<domain>/api/v1` (public), `https://ingest.<domain>/ingest/v1` (collector). `<domain>` is open decision O5 ([10](10-roadmap.md#open-decisions)). While the project is private, the collector uses `http://airspace-vm:8000/ingest/v1` over the tailnet, which encrypts the traffic ([D3](11-tasks.md#decided-while-building)).
 - JSON, UTF-8. Timestamps are ISO-8601 UTC with `Z`. Units are SI.
 - Errors: `{"error": {"code": "string", "message": "string"}}` with a matching HTTP status.
-- **CORS** (public API only): allowed origins `https://<domain>` and `https://*.<pages-project>.pages.dev` (Cloudflare Pages previews); methods `GET, POST`; header `Content-Type`; no credentials.
-- **Client IP:** the public API is reachable only through Cloudflare. It reads the client IP from `CF-Connecting-IP` and uses it only for rate limits, in memory. It is never stored.
+- **CORS** (public API only): allowed origins from `CORS_ALLOWED_ORIGINS`, plus
+  `CORS_ALLOWED_ORIGIN_REGEX` for Cloudflare Pages previews (`https://*.<pages-project>.pages.dev`);
+  methods `GET, POST`; header `Content-Type`; no credentials. The production origin is deployment
+  configuration, not a literal wildcard.
+- **Rate limit** (public API): 60 requests per 10 s per client IP, from an in-memory fixed window
+  keyed by `CF-Connecting-IP` (falling back to the socket address in local development). `/health`
+  and CORS preflights are exempt. A rejected request gets `429 rate_limited` and `Retry-After`;
+  Cloudflare applies the same limit at the edge.
+- **Client IP:** the public API is reachable only through Cloudflare. It reads the client IP from
+  `CF-Connecting-IP` and uses it only for rate limits, in memory. It is never stored.
 
 ## Public API
 

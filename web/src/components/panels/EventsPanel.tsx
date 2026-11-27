@@ -1,5 +1,6 @@
+import { useEffect, useRef } from 'react'
 import type { EventSeverity } from '../../api/types'
-import { useEvents } from '../../api/queries'
+import { useEventsInfinite } from '../../api/queries'
 import { formatEventKind, formatUtcTime } from '../../lib/format'
 import { squawkCodeFromKind } from '../../lib/squawks'
 import { SquawkCode } from '../SquawkCode'
@@ -10,8 +11,27 @@ const SEVERITY_STYLES: Record<EventSeverity, string> = {
   alert: 'border-alert/40 text-alert',
 }
 
-export function EventsPanel() {
-  const { data, isPending, isError, refetch } = useEvents()
+interface EventsPanelProps {
+  onLocate?: (lon: number, lat: number) => void
+}
+
+export function EventsPanel({ onLocate }: EventsPanelProps) {
+  const { data, isPending, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useEventsInfinite()
+  const sentinelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const node = sentinelRef.current
+    if (!node || !hasNextPage || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting && !isFetchingNextPage) void fetchNextPage()
+      },
+      { rootMargin: '200px' },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage])
 
   if (isPending) {
     return <p className="animate-pulse text-sm text-muted">Loading events…</p>
@@ -32,7 +52,7 @@ export function EventsPanel() {
     )
   }
 
-  const events = data?.events ?? []
+  const events = data?.pages.flatMap((page) => page.events) ?? []
 
   return (
     <section className="space-y-3">
@@ -41,7 +61,7 @@ export function EventsPanel() {
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">Events</p>
           <h2 className="text-base font-semibold">Live feed</h2>
         </div>
-        <span className="font-mono text-[11px] text-muted">{events.length} latest</span>
+        <span className="font-mono text-[11px] text-muted">{events.length} loaded</span>
       </div>
 
       {events.length === 0 ? (
@@ -53,6 +73,8 @@ export function EventsPanel() {
               .filter((value): value is string => Boolean(value))
               .join(' · ')
             const squawk = squawkCodeFromKind(event.kind)
+            const hasLocation = event.lon !== null && event.lat !== null
+
             return (
               <li key={event.event_id} className="py-2.5">
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider">
@@ -74,7 +96,18 @@ export function EventsPanel() {
                     {formatUtcTime(event.ts)}
                   </time>
                 </div>
-                <p className="mt-1 text-sm leading-snug">{event.title}</p>
+                {hasLocation && onLocate ? (
+                  <button
+                    type="button"
+                    onClick={() => onLocate(event.lon!, event.lat!)}
+                    className="mt-1 block w-full text-left text-sm leading-snug hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                    aria-label={`Fly to ${event.title}`}
+                  >
+                    {event.title}
+                  </button>
+                ) : (
+                  <p className="mt-1 text-sm leading-snug">{event.title}</p>
+                )}
                 {detail ? (
                   <p className="mt-0.5 font-mono text-[10px] text-muted">{detail}</p>
                 ) : null}
@@ -84,9 +117,19 @@ export function EventsPanel() {
         </ul>
       )}
 
-      <p className="border-t border-border pt-2 text-[11px] text-muted">
-        Cursor paging and map fly-to arrive in M2.6.
-      </p>
+      <div ref={sentinelRef} className="h-px" aria-hidden="true" />
+      {hasNextPage ? (
+        <button
+          type="button"
+          onClick={() => void fetchNextPage()}
+          disabled={isFetchingNextPage}
+          className="w-full rounded border border-border px-2 py-1.5 text-xs text-text hover:border-accent disabled:opacity-50"
+        >
+          {isFetchingNextPage ? 'Loading older events…' : 'Load older events'}
+        </button>
+      ) : (
+        <p className="border-t border-border pt-2 text-[11px] text-muted">End of feed.</p>
+      )}
     </section>
   )
 }

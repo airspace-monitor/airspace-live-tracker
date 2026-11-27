@@ -130,7 +130,7 @@ Every workload has CPU and memory requests, a memory limit, and readiness and li
 | Collector auth | A random key, sent as `Authorization: Bearer`, stored only as an argon2id hash in `ops.collectors`. Created with `python -m ingest.admin add-collector`, which prints the key once |
 | DB exposure | No NodePort. Admin access: SSH over Tailscale, then `kubectl -n airspace exec -it db-0 -- psql -U postgres -d airspace` |
 | DB roles | Least privilege per service ([03](03-data-model.md#roles)) |
-| Rate limits | Cloudflare rate-limiting rule on `api.<domain>/api/v1/*`: 60 requests per 10 s per IP. Chat limits in public-api ([05](05-api-contract.md#post-chat)). Anthropic console spend limit $40/month |
+| Rate limits | Cloudflare rate-limiting rule on `api.<domain>/api/v1/*`: 60 requests per 10 s per IP. The public-api also enforces a 60/10 s in-memory limiter keyed by `CF-Connecting-IP`; `/health` is exempt. Chat limits in public-api ([05](05-api-contract.md#post-chat)). Anthropic console spend limit $40/month |
 | Grafana | Anonymous access disabled. Public dashboards are *externally shared dashboards*, which run only their own saved queries. `grafana_reader` sees views without key hashes and has a 10 s statement timeout |
 | Dagster, MLflow | Not routed by Caddy; reachable only on the tailnet |
 | Secrets | VM `.env` (not in git): DB role passwords (including `BACKUP_PASSWORD`), Anthropic key, Grafana admin password, R2 credentials (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`). GitHub Actions secrets: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `DEPLOY_SSH_KEY`, and later the Anthropic key for the eval. The collector's `.env`: its OpenSky client, ingest key and R2 credentials |
