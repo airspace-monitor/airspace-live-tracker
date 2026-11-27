@@ -1,5 +1,6 @@
 import { IconLayer } from '@deck.gl/layers'
 import { altitudeColor } from '../lib/altitude'
+import { trackToIconAngle } from '../lib/heading'
 import { PLANE_ICON_ATLAS, PLANE_ICON_MAPPING } from '../lib/planeIcon'
 import type { MotionAircraft } from './motion'
 
@@ -27,7 +28,7 @@ export function aircraftLayer(
       const [r, g, b, alpha] = altitudeColor(d.alt_m, d.on_ground, d.pos_age_s)
       return [r, g, b, Math.round(alpha * d.opacity)]
     },
-    getAngle: (d) => d.track_deg ?? 0,
+    getAngle: (d) => trackToIconAngle(d.track_deg),
     pickable: true,
     autoHighlight: true,
     highlightColor: [76, 195, 255, 160],
