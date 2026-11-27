@@ -5,7 +5,7 @@ The working task list for the whole application, by milestone ([10](10-roadmap.m
 Status: ✅ done · 🟡 in progress · ⬜ to do · ⛔ blocked (the note says on what).
 Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#work-split)). Track A is owned by Dániel, Track B by Alek.
 
-*Last updated: 2026-11-25.*
+*Last updated: 2026-11-27.*
 
 ## What exists now
 
@@ -21,9 +21,9 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 | Orchestrator | Dagster on the VM (tailnet `:3000`): `backup` daily 04:00 UTC to R2, `collector_gap_check` every 5 min |
 | Dashboards | Grafana "Airspace ops" on the tailnet (`airspace-vm:3001`) |
 | Stream worker | `services/stream` in the compose stack: squawk (Europe only, [D14](#decided-while-building)) and go-around events into `core.events` from every live snapshot |
-| Web app | `web/` React 19 + Vite shell (M2.4): layout, live header from `/stats`, Events feed from `/events`, tabs, attribution, bottom sheet under 900 px. Map layers and the remaining panels are next |
-| Not started | map layers, ML, LLM |
-| public-api | `services/api` serves all of M2.1 as `app_reader`: `/live/snapshot`, `/stats`, `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/live/stream` (SSE), `/health`. Runs in the compose stack on the VM (`127.0.0.1:8001`) |
+| Web app | `web/` React 19 + Vite: layout, live header from `/stats`, Events feed with cursor paging and map fly-to, tabs, attribution, bottom sheet. MapLibre + deck.gl map with altitude colours, smooth motion, hover, selected trail and aircraft card; all lazy-loaded |
+| Not started | ML scoring, ETA, destination, LLM |
+| public-api | `services/api` serves all of M2.1 as `app_reader`: `/live/snapshot`, `/stats`, `/aircraft/{icao24}`, `/aircraft/{icao24}/track`, `/events`, `/live/stream` (SSE), `/health`. Runs in the compose stack on the VM (`127.0.0.1:8001`). CORS and an in-memory 60/10 s limiter are in the app; the Cloudflare edge rule is still an operator action |
 
 ## Open questions found while building
 
@@ -32,14 +32,14 @@ Track: **A** = data platform, **B** = product & ML ([work split](10-roadmap.md#w
 | Q1 | The remaining decisions flagged in the 2026-10-29 decision review: chat as free text-to-SQL vs fixed query tools; ~~single VM vs k3s or managed services~~ (single-node k3s, [D15](#decided-while-building)); Oracle vs Contabo; Dagster vs cron; TimescaleDB as the only store | Each is cheaper to change now than after M1 |
 | Q2 | ~~Zenodo record for the route fallback~~ Resolved: no Zenodo fallback ([D17](#decided-while-building)) | Closed 2026-11-25 |
 | Q3 | `flights_sessionizer` reads the last 30 min, so a backlog drained after an outage is never turned into flights without a manual `flights_rebuild` | With one home collector, outages will happen; those arrivals are lost as ETA labels |
-| Q5 | CARTO basemap: the key is set locally in `web/.env` (git-ignored, never committed); still add the tile budget and Pages preview origins to [08](08-frontend.md), and set the key in the Pages environment at M2.7 | Needed for M2 |
+| Q5 | CARTO basemap: the key is set locally in `web/.env` (git-ignored, never committed); the Pages workflow and docs now name `VITE_CARTO_KEY`, but the secret still needs adding to the Pages/GitHub environment, and the key needs a domain restriction + tile budget | Needed for M2 |
 | Q6 | A stream-worker outage over 10 min loses squawk and go-around events until someone runs `events_rebuild` | Add bounded catch-up on startup, or schedule the rebuild |
-| Q8 | CORS preview origins need a regex or allow-list; `Access-Control-Allow-Origin` has no wildcard subdomains | [05](05-api-contract.md) reads as a literal `*.pages.dev` |
+| Q8 | ~~CORS preview origins need a regex or allow-list~~ Resolved: `CORS_ALLOWED_ORIGINS` + `CORS_ALLOWED_ORIGIN_REGEX` in public-api; tests cover previews | Set the production domain in `infra/.env` |
 | Q9 | What happens to `ml.anomalies` when late data changes a bucket: re-score or mark stale | The heatmap can disagree with the aggregate |
 | Q10 | A negative-result path for ETA: report MAE vs B0 and B1 and keep the model card even if B1 is not beaten | B1 is a strong baseline and the success criterion may not be met |
 | Q11 | Validate H3 resolution 4 against real traffic, or test 5 or 6 for Central Europe | A 1,770 km² cell may only show overflight patterns |
 | Q12 | Golden-set questions that depend on `now()` need a frozen fixture clock; `llm.v_live_aircraft` should respect the 10-minute live window or label stale answers | Flaky eval; stale answers presented as live |
-| Q13 | Dead reckoning with `pos_age_s = null`, and whether `H3HexagonLayer` can draw a dashed outline | Small but visible map bugs |
+| Q13 | Dead reckoning with `pos_age_s = null`, and whether `H3HexagonLayer` can draw a dashed outline | Null now refuses extrapolation; H3 dashed outline remains a small visible map bug |
 | Q14 | OpenFlights is ODbL 1.0: check whether share-alike applies to our airline table, or use a CC0 list | Attribution alone may not be enough |
 | Q15 | A reference device and connection for the "< 3 s, 60 fps" criterion in [00](00-overview.md#success-criteria) | Otherwise it can't be tested |
 | Q16 | Raw compression is 2.9× (69 B/row) against the ~10× estimated; sorted Parquet reached 17 B/row. Check the `segmentby`/`orderby` settings and the index on the compressed chunks | At 24/7 collection 90 days is ~60–65 GB instead of ~30 GB; it still fits the 200 GB disk |
@@ -122,11 +122,11 @@ Q5–Q15 carry over the findings still open from the 2026-10-30 documentation re
 | M2.2 | stream-worker: squawk and go-around events, `ops.stream_state` | A | ✅ | 2026-11-22: `services/stream`, role `stream_worker`, LISTEN `new_snapshot` plus a 60 s re-check; progress in `ops.stream_state` (seeded with `-infinity`). Squawk events only in the Europe box after 3 airborne observations ([D14](#decided-while-building)). Go-arounds at the `ref.airports` targets; height uses METAR QNH once `metar_fetch` (M2.3) fills `core.metar`. CI runs the worker against live-timed snapshots. ETA inference joins when the `eta` model exists (M4) |
 | M2.3 | `metar_fetch` job | A | ✅ | 2026-11-25: Dagster at :05 and :35, last 3 h for the `is_target` airports from aviationweather.gov into `core.metar` (SI units; visibility from the raw report). Upsert, so replays write nothing and corrections replace. CI runs it against a local fixture. The stream-worker's go-around heights switch to QNH from the first report |
 | M2.4 | Web app shell: layout, header stats, attribution footer, bottom sheet under 900 px | B | ✅ | `web/` Vite 8 + React 19 + TypeScript strict: live header (`/stats`), Events feed (`/events`), tabs, attribution, bottom sheet under 900 px. Shell ~83 KB gzip JS + ~5 KB CSS; `MapPane` is a lazy chunk. ESLint/Prettier/Vitest; CI runs the web checks |
-| M2.5 | Map: aircraft layer, altitude colours, smooth motion, aircraft card, selected trail | B | ⬜ | |
-| M2.6 | Events panel with cursor paging and map fly-to | B | ⬜ | |
-| M2.7 | Cloudflare Pages project with PR previews | B | ⬜ | |
-| M2.8 | Cloudflare rate-limit rule, firewall, CORS | A | ⬜ | While private, public-api is shared to the tailnet with `tailscale serve` on `airspace-vm:8001` (since 2026-11-22, so the web app can be built against it) |
-| M2.9 | Every item in [01 Networking and security](01-architecture.md#networking-and-security) checked before the URL is shared | both | ⬜ | |
+| M2.5 | Map: aircraft layer, altitude colours, smooth motion, aircraft card, selected trail | B | ✅ | MapLibre + deck.gl aircraft layer, CARTO basemap with fallback, altitude colours, hover, click card, dead-reckoning/easing/fade and the selected trail + 2 px halo. 37 web tests |
+| M2.6 | Events panel with cursor paging and map fly-to | B | ✅ | `useInfiniteQuery` over `/events` cursor, infinite scroll + "Load older", clicking an event with coordinates flies the map to zoom 8. |
+| M2.7 | Cloudflare Pages project with PR previews | B | 🟡 | `web/wrangler.toml`, `pages.yml`, `_headers`, env docs are in place. Actual project/deploy needs `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `VITE_API_BASE` and `VITE_CARTO_KEY`; blocked by M2.8/M1.2 to make the API publicly reachable. |
+| M2.8 | Cloudflare rate-limit rule, firewall, CORS | A | 🟡 | API CORS (production origins + Pages previews) and the 60/10 s in-memory limiter are implemented and tested. The Cloudflare rule, firewall and TLS steps are written in `infra/cloudflare/README.md` but need account/VM access. |
+| M2.9 | Every item in [01 Networking and security](01-architecture.md#networking-and-security) checked before the URL is shared | both | ⛔ | Blocked on the external M2.7/M2.8 checks. The repository side is tracked in [12 Security checklist](12-security-checklist.md). |
 
 ## M3 · Curated data (weeks 3–5)
 

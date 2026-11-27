@@ -61,6 +61,7 @@ airspace-live-tracker/
 | Workflow | Trigger | Steps |
 |---|---|---|
 | `ci.yml` | every PR and push | ruff, mypy, pytest; ESLint, tsc, Vitest; migration test (apply all migrations to an empty pinned Timescale container, then run the compressed-chunk insert test); Docker build for both architectures; `k8s`: kubeconform on the manifests, then `k3s-install.sh` and `k8s-apply.sh` (run twice, must restart nothing) on a throwaway k3s and a smoke test of every NodePort |
+| `pages.yml` | push to `main`, every PR | builds `web/`, then deploys production or a branch preview to Cloudflare Pages when `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are configured; the deploy step is skipped without them |
 | `llm-eval.yml` | PRs touching `services/llm/**`, `db/llm_views.md`, `db/migrations/**`, `db/seeds/fixture/**` | Golden-set eval and briefing number check against the fixture DB ([07](07-llm.md#3--evaluation-ci)) |
 | `deploy.yml` | `ci.yml` passed on `main`, or by hand | Join the tailnet and run `infra/deploy.sh` on the VM ([01](01-architecture.md#deployment)) |
 

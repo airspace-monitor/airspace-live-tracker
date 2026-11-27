@@ -45,6 +45,17 @@ class ApiSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     database_url: SecretStr
+    # Public API CORS (docs/05-api-contract.md#cors). The production domain and the Pages
+    # project origin are deployment-specific; defaults cover local development and previews.
+    cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_allowed_origin_regex: str = r"https://([a-z0-9-]+\.)?airspace-live-tracker\.pages\.dev"
+    # In-memory defense-in-depth limit; Cloudflare also rate-limits at the edge.
+    rate_limit_requests: int = Field(default=60, gt=0)
+    rate_limit_window_seconds: float = Field(default=10.0, gt=0)
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
 
 class StreamSettings(BaseSettings):

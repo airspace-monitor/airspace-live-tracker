@@ -4,14 +4,16 @@ import asyncio
 import contextlib
 import json
 import threading
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from airspace_common.log import configure_logging
@@ -28,8 +30,45 @@ DEFAULT_EVENT_LIMIT = 50
 MAX_EVENT_LIMIT = 100
 SSE_KEEPALIVE_SECONDS = 20
 API_PREFIX = "/api/v1"
+DEFAULT_RATE_LIMIT_REQUESTS = 60
+DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 10.0
+DEFAULT_CORS_ORIGIN_REGEX = r"https://([a-z0-9-]+\.)?airspace-live-tracker\.pages\.dev"
 
 log = structlog.get_logger()
+
+
+class FixedWindowRateLimiter:
+    """A small in-memory limiter keyed by client IP; one process, reset on restart."""
+
+    def __init__(self, max_requests: int, window_seconds: float) -> None:
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._buckets: dict[str, tuple[float, int]] = {}
+        self._lock = threading.Lock()
+
+    def hit(self, key: str, now: float | None = None) -> tuple[bool, float]:
+        """Return (allowed, retry_after_seconds)."""
+        current = time.monotonic() if now is None else now
+        with self._lock:
+            started, count = self._buckets.get(key, (current, 0))
+            if current - started >= self.window_seconds:
+                started, count = current, 0
+            count += 1
+            self._buckets[key] = (started, count)
+            if len(self._buckets) > 10_000:
+                self._prune(current)
+            if count > self.max_requests:
+                return False, max(1.0, self.window_seconds - (current - started))
+            return True, 0.0
+
+    def _prune(self, now: float) -> None:
+        stale = [
+            key
+            for key, (started, _) in self._buckets.items()
+            if now - started >= self.window_seconds
+        ]
+        for key in stale:
+            self._buckets.pop(key, None)
 
 
 class BadRequest(Exception):
@@ -237,7 +276,15 @@ def aircraft_payload(detail: AircraftDetail) -> dict[str, Any]:
     }
 
 
-def build_app(store: Store, notifier: Notifier) -> FastAPI:
+def build_app(
+    store: Store,
+    notifier: Notifier,
+    *,
+    cors_origins: list[str] | None = None,
+    cors_origin_regex: str | None = None,
+    rate_limit_requests: int = DEFAULT_RATE_LIMIT_REQUESTS,
+    rate_limit_window_seconds: float = DEFAULT_RATE_LIMIT_WINDOW_SECONDS,
+) -> FastAPI:
     app = FastAPI(
         title="airspace public-api",
         docs_url=None,
@@ -245,6 +292,31 @@ def build_app(store: Store, notifier: Notifier) -> FastAPI:
         openapi_url=f"{API_PREFIX}/openapi.json",
     )
     router = APIRouter(prefix=API_PREFIX)
+    limiter = FixedWindowRateLimiter(rate_limit_requests, rate_limit_window_seconds)
+
+    @app.middleware("http")
+    async def rate_limit_middleware(request: Request, call_next: Any) -> Any:
+        if request.method == "OPTIONS" or request.url.path == f"{API_PREFIX}/health":
+            return await call_next(request)
+        client_ip = request.headers.get("CF-Connecting-IP") or (
+            request.client.host if request.client else "unknown"
+        )
+        allowed, retry_after = limiter.hit(client_ip)
+        if not allowed:
+            response = _error(429, "rate_limited", "too many requests")
+            response.headers["Retry-After"] = str(max(1, int(retry_after)))
+            return response
+        return await call_next(request)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins or ["http://localhost:5173", "http://127.0.0.1:5173"],
+        allow_origin_regex=cors_origin_regex or DEFAULT_CORS_ORIGIN_REGEX,
+        allow_credentials=False,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type"],
+        max_age=600,
+    )
 
     @router.get("/live/snapshot")
     async def live_snapshot(bbox: str | None = None, t: str | None = None) -> JSONResponse:
@@ -388,6 +460,13 @@ def create_app() -> FastAPI:
         finally:
             store.close()
 
-    app = build_app(store, notifier)
+    app = build_app(
+        store,
+        notifier,
+        cors_origins=settings.cors_origin_list,
+        cors_origin_regex=settings.cors_allowed_origin_regex,
+        rate_limit_requests=settings.rate_limit_requests,
+        rate_limit_window_seconds=settings.rate_limit_window_seconds,
+    )
     app.router.lifespan_context = lifespan
     return app

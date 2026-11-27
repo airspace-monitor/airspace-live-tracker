@@ -1,8 +1,10 @@
 # Airspace Monitor — web
 
-React 19 + TypeScript (strict) + Vite single-page app. The shell (M2.4) has the
-layout, live header stats, the Events feed, the attribution footer and the
-mobile bottom sheet. The map and the remaining panels come next.
+React 19 + TypeScript (strict) + Vite single-page app. The app has the
+layout, live header stats, the Events feed with cursor paging and map fly-to,
+the aircraft map with smooth motion, hover/selection, trails and the aircraft
+card, the attribution footer and the mobile bottom sheet. Briefing, Ask and
+Arrivals remain placeholders until M4/M5.
 
 ```
 web/
@@ -33,8 +35,18 @@ same-origin requests and CORS is not involved locally. The default target is
 change `VITE_API_PROXY_TARGET` to point somewhere else (for example a locally
 running `public-api`).
 
-The production app will call `https://api.<domain>/api/v1` through Cloudflare;
-CORS is added there in M2.8.
+The production app calls `https://api.<domain>/api/v1` through Cloudflare. Set
+the build-time `VITE_API_BASE` repository variable to that URL; the API allows
+the Pages origins in M2.8. Locally, the proxy keeps the browser same-origin.
+
+## Deployment
+
+Cloudflare Pages project `airspace-live-tracker`, root `web`, build `pnpm build`,
+output `dist`. `.github/workflows/pages.yml` deploys production from `main` and
+a preview from each PR once `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
+exist. Set `VITE_CARTO_KEY` as a Pages secret and `VITE_API_BASE` as a repository
+variable (or the Pages environment). `web/public/_headers` carries the security
+headers; see `docs/12-security-checklist.md`.
 
 ## Basemap
 

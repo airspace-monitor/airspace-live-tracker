@@ -485,3 +485,42 @@ def test_database_failure_is_reported(client: TestClient, store: FakeStore) -> N
     assert track.status_code == 503
     assert health.status_code == 503
     assert health.json() == {"status": "degraded", "db": "error", "last_snapshot_age_s": None}
+
+
+def test_cors_allows_the_local_dev_origin(client: TestClient) -> None:
+    response = client.get("/api/v1/stats", headers={"Origin": "http://localhost:5173"})
+
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_cors_allows_pages_preview_origins(client: TestClient) -> None:
+    origin = "https://feature-branch.airspace-live-tracker.pages.dev"
+
+    response = client.get("/api/v1/stats", headers={"Origin": origin})
+
+    assert response.headers["access-control-allow-origin"] == origin
+
+
+def test_cors_rejects_an_unknown_origin(client: TestClient) -> None:
+    response = client.get("/api/v1/stats", headers={"Origin": "https://evil.example"})
+
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_rate_limit_returns_429_with_retry_after(store: FakeStore) -> None:
+    app = build_app(
+        store,
+        FakeNotifier(),
+        rate_limit_requests=2,
+        rate_limit_window_seconds=60,
+    )
+
+    with TestClient(app) as limited:
+        assert limited.get("/api/v1/stats").status_code == 200
+        assert limited.get("/api/v1/stats").status_code == 200
+        response = limited.get("/api/v1/stats", headers={"Origin": "http://localhost:5173"})
+
+    assert response.status_code == 429
+    assert response.json()["error"]["code"] == "rate_limited"
+    assert int(response.headers["retry-after"]) >= 1
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"

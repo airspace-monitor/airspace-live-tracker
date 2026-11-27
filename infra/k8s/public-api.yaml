@@ -49,6 +49,23 @@ spec:
                 secretKeyRef: { name: airspace-env, key: APP_READER_PASSWORD }
             - name: DATABASE_URL
               value: postgres://app_reader:$(APP_READER_PASSWORD)@db:5432/airspace?sslmode=disable
+            # Optional in infra/.env; the settings class has localhost + Pages defaults.
+            - name: CORS_ALLOWED_ORIGINS
+              valueFrom:
+                secretKeyRef:
+                  { name: airspace-env, key: CORS_ALLOWED_ORIGINS, optional: true }
+            - name: CORS_ALLOWED_ORIGIN_REGEX
+              valueFrom:
+                secretKeyRef:
+                  { name: airspace-env, key: CORS_ALLOWED_ORIGIN_REGEX, optional: true }
+            - name: RATE_LIMIT_REQUESTS
+              valueFrom:
+                secretKeyRef:
+                  { name: airspace-env, key: RATE_LIMIT_REQUESTS, optional: true }
+            - name: RATE_LIMIT_WINDOW_SECONDS
+              valueFrom:
+                secretKeyRef:
+                  { name: airspace-env, key: RATE_LIMIT_WINDOW_SECONDS, optional: true }
           resources:
             requests: { cpu: 100m, memory: 128Mi }
             limits: { cpu: "1", memory: 512Mi }

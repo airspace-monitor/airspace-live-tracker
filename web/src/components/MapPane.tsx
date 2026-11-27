@@ -8,25 +8,35 @@ import {
 import { MapboxOverlay } from '@deck.gl/mapbox'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import './map.css'
-import { useLiveSnapshot } from '../api/queries'
+import { useAircraftTrack, useLiveSnapshot } from '../api/queries'
 import { MAP_STYLE } from '../lib/basemap'
 import { parseAircraft, type Aircraft } from '../lib/aircraft'
+import type { MapFocus } from '../lib/mapFocus'
 import { aircraftLayer } from '../map/aircraftLayer'
 import { advanceMotion, updateMotion, type MotionAircraft } from '../map/motion'
+import { buildTrail, selectedHaloLayer, trailLayer, type TrailSegment } from '../map/trailLayer'
 import { AircraftCard } from './AircraftCard'
 import { AltitudeLegend } from './AltitudeLegend'
 
-export default function MapPane() {
+interface MapPaneProps {
+  focus?: MapFocus | null
+}
+
+export default function MapPane({ focus = null }: MapPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<MapboxOverlay | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const motionRef = useRef<MotionAircraft[]>([])
+  const trailRef = useRef<TrailSegment[]>([])
+  const selectedIdRef = useRef<string | null>(null)
+  const focusRef = useRef<MapFocus | null>(focus)
   const revisionRef = useRef(0)
   const rafRef = useRef<number | null>(null)
   const lastFrameRef = useRef(0)
   const lastSnapshotRef = useRef<string | null>(null)
   const { data } = useLiveSnapshot()
   const [selected, setSelected] = useState<Aircraft | null>(null)
+  const track = useAircraftTrack(selected?.icao24 ?? null)
 
   const aircraft = useMemo(() => (data ? parseAircraft(data) : []), [data])
   const liveSelected = selected
@@ -37,19 +47,51 @@ export default function MapPane() {
     const overlay = overlayRef.current
     if (!overlay) return
     revisionRef.current += 1
-    overlay.setProps({
-      layers: [
-        aircraftLayer(
-          motionRef.current,
-          (icao24) => {
-            const map = mapRef.current
-            if (map) map.getCanvasContainer().style.cursor = icao24 ? 'pointer' : ''
-          },
-          revisionRef.current,
-        ),
-      ],
+    const selectedMotion = selectedIdRef.current
+      ? (motionRef.current.find((row) => row.icao24 === selectedIdRef.current) ?? null)
+      : null
+    const layers = []
+    if (trailRef.current.length > 0) layers.push(trailLayer(trailRef.current))
+    layers.push(selectedHaloLayer(selectedMotion))
+    layers.push(
+      aircraftLayer(
+        motionRef.current,
+        (icao24) => {
+          const map = mapRef.current
+          if (map) map.getCanvasContainer().style.cursor = icao24 ? 'pointer' : ''
+        },
+        revisionRef.current,
+      ),
+    )
+    overlay.setProps({ layers })
+  }, [])
+
+  useEffect(() => {
+    selectedIdRef.current = selected?.icao24 ?? null
+    if (!selected) trailRef.current = []
+    applyAircraft()
+  }, [selected, applyAircraft])
+
+  useEffect(() => {
+    trailRef.current = buildTrail(track.data?.points ?? [])
+    applyAircraft()
+  }, [track.data, applyAircraft])
+
+  const flyTo = useCallback((target: MapFocus) => {
+    const map = mapRef.current
+    if (!map) return
+    map.flyTo({
+      center: [target.lon, target.lat],
+      zoom: Math.max(map.getZoom(), 8),
+      duration: 1200,
+      essential: true,
     })
   }, [])
+
+  useEffect(() => {
+    focusRef.current = focus
+    if (focus) flyTo(focus)
+  }, [focus, flyTo])
 
   // Merge each snapshot into the interpolation state, then let the animation loop
   // advance it. A repeated snapshot_time (SSE open/refetch) is ignored.
@@ -105,6 +147,7 @@ export default function MapPane() {
     })
     map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
     mapRef.current = map
+    if (focusRef.current) flyTo(focusRef.current)
 
     const overlay = new MapboxOverlay({
       interleaved: false,
@@ -134,7 +177,7 @@ export default function MapPane() {
       overlayRef.current = null
       map.remove()
     }
-  }, [applyAircraft])
+  }, [applyAircraft, flyTo])
 
   return (
     <div className="relative h-full w-full">

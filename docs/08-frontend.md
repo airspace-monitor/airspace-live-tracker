@@ -8,6 +8,25 @@ React 19 + TypeScript (strict) + Vite, MapLibre GL JS (basemap), deck.gl via `Ma
 
 Basemap: CARTO *Dark Matter* when `VITE_CARTO_KEY` is configured (Q5); without a key, `web/` falls back to OpenFreeMap *Dark*. Both require OpenStreetMap attribution, and the footer switches with the basemap. Self-hosted Protomaps PMTiles is a stretch item.
 
+## Deployment (M2.7)
+
+Cloudflare Pages project `airspace-live-tracker`, root `web`, build `pnpm build`, output `dist`,
+production branch `main`; pull requests get preview URLs. `.github/workflows/pages.yml` builds and
+direct-uploads with Wrangler when the Cloudflare secrets are present, and `web/wrangler.toml` pins
+the project/output. `web/public/_headers` sets the security headers checked in
+[12](12-security-checklist.md).
+
+The static bundle needs two build-time values:
+
+- `VITE_API_BASE=https://api.<domain>/api/v1` (repository variable `VITE_API_BASE`; without it the
+  app would call its own Pages origin).
+- `VITE_CARTO_KEY` (Pages secret; never in git; restrict it to the Pages/production origins).
+
+CORS permits the production origin from `CORS_ALLOWED_ORIGINS` and previews through
+`CORS_ALLOWED_ORIGIN_REGEX`; the implementation and the remaining Cloudflare action are in
+[`infra/cloudflare/README.md`](../infra/cloudflare/README.md). A preview is not a public launch
+until every item in [12](12-security-checklist.md) is checked.
+
 ## Layout
 
 ```

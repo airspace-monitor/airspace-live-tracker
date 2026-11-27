@@ -1,0 +1,62 @@
+# Builds web/ and deploys it to Cloudflare Pages. Production is main; every PR gets a
+# preview URL. The deploy step is skipped until the repository has the Cloudflare secrets.
+name: pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+        env:
+          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+          VITE_CARTO_KEY: ${{ secrets.VITE_CARTO_KEY }}
+      - name: Check the Cloudflare configuration
+        id: cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Cloudflare secrets are not configured; skipping the deploy step."
+          fi
+      - name: Require the production API URL
+        if: steps.cloudflare.outputs.deploy == 'true'
+        run: test -n "$VITE_API_BASE"
+        env:
+          VITE_API_BASE: ${{ vars.VITE_API_BASE }}
+      - name: Deploy to Cloudflare Pages
+        if: steps.cloudflare.outputs.deploy == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: web
+          wranglerVersion: "4"
+          command: pages deploy dist --project-name=airspace-live-tracker --branch=${{ github.head_ref || 'main' }} --commit-dirty=true

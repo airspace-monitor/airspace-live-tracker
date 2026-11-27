@@ -4,7 +4,12 @@ import { AskPanel } from './panels/AskPanel'
 import { BriefingPanel } from './panels/BriefingPanel'
 import { EventsPanel } from './panels/EventsPanel'
 
-export function PanelContent({ tab }: { tab: TabId }) {
+interface PanelContentProps {
+  tab: TabId
+  onLocate?: (lon: number, lat: number) => void
+}
+
+export function PanelContent({ tab, onLocate }: PanelContentProps) {
   switch (tab) {
     case 'briefing':
       return <BriefingPanel />
@@ -13,6 +18,6 @@ export function PanelContent({ tab }: { tab: TabId }) {
     case 'arrivals':
       return <ArrivalsPanel />
     case 'events':
-      return <EventsPanel />
+      return <EventsPanel onLocate={onLocate} />
   }
 }
